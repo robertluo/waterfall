@@ -1,0 +1,11 @@
+;Configuration for Clojure tools.deps
+
+{:paths   ["src"]
+ :deps    {manifold/manifold              {:mvn/version "0.2.4"}
+           org.apache.kafka/kafka-clients {:mvn/version "3.2.1"}
+           metosin/malli                  {:mvn/version "0.8.9"}}
+ :aliases {:dev  {:extra-paths ["test"]
+                  :extra-deps  {org.apache.kafka/kafka_2.13    {:mvn/version "3.2.1"}
+                                ch.qos.logback/logback-classic {:mvn/version "1.4.0"}}}
+           :test {:extra-deps {lambdaisland/kaocha {:mvn/version "1.0.887"}}
+                  :main-opts  ["-m" "kaocha.runner"]}}}
