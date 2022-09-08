@@ -11,9 +11,11 @@ Ketu is nice, however,
 ## Tasks
 
  - [ ] Test environment
- - [ ] Core data structures
- - [ ] Convert core data into Kafka config
- - [ ] Publisher
+ - [x] Core data structures
+ - [x] Convert core data into Kafka config
+ - [ ] Producer
+  - [x] confirmed by `kafka-console-consumer.sh`
+ - [ ] Consumer
  - [ ] Implement EventBus
 
 ## Files description
