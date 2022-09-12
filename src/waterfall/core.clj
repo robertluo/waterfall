@@ -2,6 +2,7 @@
   "Core data structure"
   (:require
    [malli.core :as m]
+   [malli.error :as me]
    [manifold.deferred :as defer])
   (:import
    (java.util Map)
@@ -24,21 +25,30 @@
    :event/key-func   [:=> [:cat :event/data] :event/data]
    :event/value-func [:=> [:cat :event/data] :event/data]
 
-   :topic/name      :non-empty-string
+   :topic/name      :non-empty-str
    ::producer       [:map
                      :cluster/servers
                      :topic/name
                      [:key/serde {:optional true}]
                      [:value/serde {:optional true}]
                      [:event/key-func {:optional true}]
-                     [:event/value-func {:optional true}]
-                     [:producer/compression {:optional true}]]})
+                     [:event/value-func {:optional true}]]})
 
 (def default-definition
   {:key/serde        :byte-array
    :value/serde      :byte-array
    :event/key-func   (constantly nil)
    :event/value-func identity})
+
+(let [schema [:schema {:registry schema-registry} ::producer]
+      producer-parser (m/parser schema)
+      explainer (m/explainer schema)]
+  (defn producer-definition
+    [definition]
+    (let [rslt (producer-parser definition)]
+      (if (= rslt ::m/invalid)
+        #:error{:msg (-> (explainer definition) (me/humanize))}
+        rslt))))
 
 (defn definition->config
   "returns Kafka config map for `definition`"

@@ -2,7 +2,7 @@
 
 An attempt for Kafka in ideomatical Clojure.
 
-Libraries like kinsky try to provide wrappers for Kafka java client, which is not very useful.
+Libraries like Kinsky try to provide wrappers for Kafka java client, which is not very useful.
 
 Ketu is nice, however, 
 
@@ -18,7 +18,7 @@ Ketu is nice, however,
  - [ ] Consumer
  - [ ] Implement EventBus
 
-## Files description
+## Files Description
 
   | Filename | Description |
   | -- | -- |
