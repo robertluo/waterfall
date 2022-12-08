@@ -1,11 +1,15 @@
 (ns waterfall.core
   "Core data structure"
   (:require
-   [manifold.deferred :as defer])
+   [manifold.deferred :as defer]
+   [manifold.stream :as ms]
+   [manifold.stream.core :as sc])
   (:import 
    (java.util Map)
-   (org.apache.kafka.common.serialization ByteArraySerializer)
-   (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord RecordMetadata)))
+   (org.apache.kafka.common.serialization ByteArraySerializer ByteArrayDeserializer)
+   (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord RecordMetadata)
+   (org.apache.kafka.clients.consumer KafkaConsumer Consumer)
+   (java.time Duration)))
 
 ;; Kafka producer/consumer need config map.
 ;; Instead of using properties in java API, we introduce a concept of definition.
@@ -26,19 +30,44 @@
                        #(transduce (comp (map svr->str) (interpose ";")) str %)]]]
       (into {} (comp (map process) (filter identity)) processors))))
 
-(defn sink
+(defn producer
   [cluster-def]
-  (let [^Producer producer (KafkaProducer. ^Map (def->config cluster-def) (ByteArraySerializer.) (ByteArraySerializer.))
-        rmd->map (fn [^RecordMetadata rmd] (zipmap [:offset :partition :key-size :value-size :timestamp :topic] [ (.offset rmd) (.partition rmd) (.serializedKeySize rmd) (.serializedValueSize rmd) (.timestamp rmd) (.topic rmd)]))]
-    (fn [{:keys [k v topic partition timestamp]}]
-      (let [pr (ProducerRecord. topic partition timestamp k v)
-            rslt (defer/->deferred (.send producer pr))]
-        (defer/chain rslt rmd->map)))))
+  (KafkaProducer. ^Map (def->config cluster-def) (ByteArraySerializer.) (ByteArraySerializer.)))
+
+(sc/def-sink KafkaProducerSink
+  [^Producer producer]
+  (isSynchronous [_] false)
+  (close [_] (.close producer))
+  (description
+   [this]
+   {:type (.getCanonicalName (class Producer))
+    :sink? true
+    :closed? (.markClosed this)})
+  (put 
+   [_ x blocking?]
+   (let [{:keys [k v topic partition timestamp]} x
+         pr (ProducerRecord. topic partition timestamp k v)    
+         rslt (.send producer pr)]
+     (if blocking? @rslt rslt)))
+  (put
+   [this x _ _ _]
+   (.put this x false)))
+
+(extend-protocol sc/Sinkable
+  Producer
+  (to-sink [producer]
+    (->KafkaProducerSink producer)))
 
 (comment
   (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]}) 
   (def->config clu)
-  (def a (sink clu))
-  (def rslt (a {:topic "test" :k (.getBytes "name") :v (.getBytes "luotian")}))
-  @rslt
+  (def a (ms/->sink (producer clu)))
+  (ms/put! a {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")})
   )
+
+(defn source
+  [cluster-def group-id topics]
+  (let [config (merge (def->config cluster-def) {"group.id" group-id})
+        ^Consumer consumer (KafkaConsumer. config (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
+    (.subscribe consumer topics)
+    (.poll consumer (Duration/ofSeconds 300))))

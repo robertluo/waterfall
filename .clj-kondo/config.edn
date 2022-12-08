@@ -1,2 +1,3 @@
 {:lint-as
- {expectations.clojure.test/defexpect clojure.test/deftest}}
+ {expectations.clojure.test/defexpect clojure.test/deftest
+  manifold.stream.core/def-sink clojure.core/deftype}}
