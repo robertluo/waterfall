@@ -1,12 +1,11 @@
 (ns waterfall.core
   "Core data structure"
   (:require
-   [malli.core :as m]
-   [malli.error :as me]
    [manifold.deferred :as defer])
-  (:import
+  (:import 
    (java.util Map)
-   (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord)))
+   (org.apache.kafka.common.serialization ByteArraySerializer)
+   (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord RecordMetadata)))
 
 ;; Kafka producer/consumer need config map.
 ;; Instead of using properties in java API, we introduce a concept of definition.
@@ -16,91 +15,30 @@
    :server/name      :non-empty-str
    :server/port      pos-int?
    ::server          [:map :server/name :server/port]
-   :cluster/servers  [:+ ::server]
+   :cluster/servers  [:+ ::server]})
 
-   :serde/type       [:enum :string :byte-array {:default :byte-array}]
-   :key/serde        :serde/type
-   :value/serde      :serde/type
-   :event/data       :any
-   :event/key-func   [:=> [:cat :event/data] :event/data]
-   :event/value-func [:=> [:cat :event/data] :event/data]
-
-   :topic/name      :non-empty-str
-   ::producer       [:map
-                     :cluster/servers
-                     :topic/name
-                     [:key/serde {:optional true}]
-                     [:value/serde {:optional true}]
-                     [:event/key-func {:optional true}]
-                     [:event/value-func {:optional true}]]})
-
-(def default-definition
-  {:key/serde        :byte-array
-   :value/serde      :byte-array
-   :event/key-func   (constantly nil)
-   :event/value-func identity})
-
-(let [schema [:schema {:registry schema-registry} ::producer]
-      producer-parser (m/parser schema)
-      explainer (m/explainer schema)]
-  (defn producer-definition
-    [definition]
-    (let [rslt (producer-parser definition)]
-      (if (= rslt ::m/invalid)
-        #:error{:msg (-> (explainer definition) (me/humanize))}
-        rslt))))
-
-(defn definition->config
+(defn def->config
   "returns Kafka config map for `definition`"
   [definition]
-  (letfn [(svr->str [{:server/keys [name port]}] (str name ":" port))
-          (serde [k] (k {:string "org.apache.kafka.common.serialization.StringSerializer"
-                         :byte-array "org.apache.kafka.common.serialization.ByteArraySerializer"}))
+  (letfn [(svr->str [{:server/keys [name port]}] (str name ":" port)) 
           (process [[k const f]] (when-let [v (get definition k)] [const (f v)]))]
-    (let [processors [[:cluster/servers ProducerConfig/BOOTSTRAP_SERVERS_CONFIG #(transduce (comp (map svr->str) (interpose ";")) str %)]
-                      [:key/serde ProducerConfig/KEY_SERIALIZER_CLASS_CONFIG serde]
-                      [:value/serde ProducerConfig/VALUE_SERIALIZER_CLASS_CONFIG serde]
-                      [:producer/compression ProducerConfig/COMPRESSION_TYPE_CONFIG name]]]
+    (let [processors [[:cluster/servers ProducerConfig/BOOTSTRAP_SERVERS_CONFIG
+                       #(transduce (comp (map svr->str) (interpose ";")) str %)]]]
       (into {} (comp (map process) (filter identity)) processors))))
 
-(comment
-  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]
-            :topic/name "greater"})
-  (m/explain [:schema {:registry schema-registry} ::producer] clu)
-  (definition->config clu))
-
-(defprotocol EventSender
-  "A sender can send arbitary clojure data to an event bus (a.k.a Kafka topic)"
-  (-send! [sender event] "send an event"))
-
-(defn event->producer-record
-  [definition event]
-  (let [{^String topic :topic/name
-         k-serde :key/serde v-serde :value/serde
-         key-func :event/key-func value-func :event/value-func} definition
-        f-ser (fn [ser-type]
-                (case ser-type
-                  :string pr-str
-                  :byte-array (comp #(.getBytes ^String % "UTF-8") pr-str)))
-        k (-> event key-func ((f-ser k-serde)))
-        v (-> event value-func ((f-ser v-serde)))]
-    (ProducerRecord. topic k v)))
-
-(defrecord KafkaEventSender [definition ^Producer producer]
-  EventSender
-  (-send!
-    [_ event]
-    (.send producer (event->producer-record definition event))))
-
-(defn kafka-event-sender
-  [definition]
-  (let [definition (merge default-definition definition)
-        producer (KafkaProducer. ^Map (definition->config definition))]
-    (->KafkaEventSender definition producer)))
+(defn sink
+  [cluster-def]
+  (let [^Producer producer (KafkaProducer. ^Map (def->config cluster-def) (ByteArraySerializer.) (ByteArraySerializer.))
+        rmd->map (fn [^RecordMetadata rmd] (zipmap [:offset :partition :key-size :value-size :timestamp :topic] [ (.offset rmd) (.partition rmd) (.serializedKeySize rmd) (.serializedValueSize rmd) (.timestamp rmd) (.topic rmd)]))]
+    (fn [{:keys [k v topic partition timestamp]}]
+      (let [pr (ProducerRecord. topic partition timestamp k v)
+            rslt (defer/->deferred (.send producer pr))]
+        (defer/chain rslt rmd->map)))))
 
 (comment
-  (require '[manifold.deferred :as defer])
-  (def sender (kafka-event-sender clu))
-  (defer/chain (-send! sender "hello, world again!") (comp println str))
-  *1
+  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]}) 
+  (def->config clu)
+  (def a (sink clu))
+  (def rslt (a {:topic "test" :k (.getBytes "name") :v (.getBytes "luotian")}))
+  @rslt
   )
