@@ -3,12 +3,13 @@
   (:require
    [manifold.deferred :as defer]
    [manifold.stream :as ms]
+   [manifold.utils :as mu]
    [manifold.stream.core :as sc])
-  (:import 
+  (:import
    (java.util Map)
    (org.apache.kafka.common.serialization ByteArraySerializer ByteArrayDeserializer)
    (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord RecordMetadata)
-   (org.apache.kafka.clients.consumer KafkaConsumer Consumer)
+   (org.apache.kafka.clients.consumer KafkaConsumer Consumer ConsumerRecord)
    (java.time Duration)))
 
 ;; Kafka producer/consumer need config map.
@@ -53,7 +54,10 @@
 (sc/def-sink KafkaProducerSink
   [^Producer producer]
   (isSynchronous [_] false)
-  (close [_] (.close producer))
+  (close
+   [this]
+   (.close producer)
+   (.markClosed this))
   (description
    [this]
    {:type (.getCanonicalName (class Producer))
@@ -78,17 +82,67 @@
   (to-sink [producer]
     (->KafkaProducerSink producer)))
 
-(comment
-  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
-  (def->config clu)
-  (def a (ms/->sink (producer clu)))
-  (ms/put! a {:topic "hello" :k (.getBytes "hello") :v (.getBytes "world")})
-  @*1
-  )
-
-(defn source
-  [cluster-def group-id topics]
-  (let [config (merge (def->config cluster-def) {"group.id" group-id})
+(defn consumer
+  ^Consumer [cluster-def group-id topics]
+  (let [config (merge (def->config cluster-def) {"group.id" group-id "enable.auto.commit" "true"})
         ^Consumer consumer (KafkaConsumer. config (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
     (.subscribe consumer topics)
-    (.poll consumer (Duration/ofSeconds 300))))
+    consumer))
+
+(defn- cr->map
+  [^ConsumerRecord cr]
+  (when cr
+    (zipmap
+     [:offset :partition :key-size :value-size :timestamp
+      :timestamp-type :topic :key :value :headers]
+     [(.offset cr)
+      (.partition cr)
+      (.serializedKeySize cr)
+      (.serializedValueSize cr)
+      (.timestamp cr)
+      (.timestampType cr)
+      (.topic cr)
+      (.key cr)
+      (.value cr)
+      (.headers cr)])))
+
+(sc/def-source KafkaConsumerSource
+  [^Consumer consumer a-ite]
+  (isSynchronous [_] true)
+  (close
+   [this]
+   (.close consumer)
+   (.markDrained this))
+  (description
+   [_]
+   {:type (.getCanonicalName (class consumer))})
+  (take
+   [_ default-val blocking?]
+   (-> (swap! a-ite (fn [ite]
+                      (if (or (nil? ite) (.isDrained ite))
+                        (let [records (.poll consumer (Duration/ofSeconds 1))]
+                          (tap> {:cnt (.count records) :records records})
+                          (-> (.iterator records) (ms/->source)))
+                        ite)))
+       (.take default-val blocking?)
+       (defer/chain cr->map))))
+
+(extend-protocol sc/Sourceable
+  Consumer
+  (to-source [consumer]
+    (->KafkaConsumerSource consumer (atom nil))))
+
+(comment
+  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
+  (def prod (ms/->sink (producer clu)))
+  (ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")})
+  @*1
+  (ms/close! prod)
+
+  (def con (ms/->source (consumer clu "group.hello" ["test"])))
+  (.isDrained con)
+  (.take con nil false)
+  (def take1 (ms/take! con))
+  (if (defer/realized? take1) @take1 ::wait)
+  (ms/close! con)
+  )
