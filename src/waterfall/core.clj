@@ -49,6 +49,16 @@
               (or (nil? partition) (pos-int? partition))
               (or (nil? timestamp) (pos-int? timestamp))))))
 
+(defn put*
+  [^Producer producer x blocking?]
+  (assert (produce-record? x) (str "invalid produce record: " x))
+  (let [{:keys [k v topic partition timestamp]} x
+        pr (ProducerRecord. topic partition timestamp k v)
+        rslt (.send producer pr)]
+    (if blocking?
+      (rmd->map @rslt)
+      (defer/chain rslt rmd->map))))
+
 ;; Caution: Manifold uses interface for sind/source definition
 ;; Modify sink/source might need restart REPL
 (sc/def-sink KafkaProducerSink
@@ -63,19 +73,12 @@
    {:type (.getCanonicalName (class Producer))
     :sink? true
     :closed? (.markClosed this)})
-  (put 
-   [_ x blocking?]
-   (assert (produce-record? x) (str "invalid produce record: " x))
-   (let [{:keys [k v topic partition timestamp]} x
-         pr (ProducerRecord. topic partition timestamp k v)    
-         rslt (.send producer pr)]
-     (if blocking? 
-       (rmd->map @rslt) 
-       (defer/chain rslt rmd->map))))
   (put
-   [this x _ _ _]
-   ;;TODO use future cancel to implement timeout?
-   (.put this x false)))
+   [_ x blocking?]
+   (put* producer x blocking?))
+  (put
+   [this x blocking? _ _]
+   (.put this x blocking?)))
 
 (extend-protocol sc/Sinkable
   Producer
