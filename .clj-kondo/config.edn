@@ -1,3 +1,4 @@
 {:lint-as
  {expectations.clojure.test/defexpect clojure.test/deftest
-  manifold.stream.core/def-sink clojure.core/deftype}}
+  manifold.stream.core/def-sink clojure.core/deftype
+  manifold.stream.core/def-source clojure.core/deftype}}

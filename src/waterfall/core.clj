@@ -1,14 +1,14 @@
 (ns waterfall.core
   "Core data structure"
   (:require
-   [manifold.deferred :as defer]
-   [manifold.stream :as ms]
-   [manifold.stream.core :as sc])
-  (:import 
+   [manifold.stream :as ms] 
+   [manifold.stream.core :as sc]
+   [manifold.deferred :as d])
+  (:import
    (java.util Map)
    (org.apache.kafka.common.serialization ByteArraySerializer ByteArrayDeserializer)
    (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord RecordMetadata)
-   (org.apache.kafka.clients.consumer KafkaConsumer Consumer)
+   (org.apache.kafka.clients.consumer KafkaConsumer Consumer ConsumerRecord)
    (java.time Duration)))
 
 ;; Kafka producer/consumer need config map.
@@ -48,47 +48,118 @@
               (or (nil? partition) (pos-int? partition))
               (or (nil? timestamp) (pos-int? timestamp))))))
 
+(defn put*
+  [^Producer producer x blocking?]
+  (assert (produce-record? x) (str "invalid produce record: " x))
+  (let [{:keys [k v topic partition timestamp]} x
+        pr (ProducerRecord. topic partition timestamp k v)
+        rslt (.send producer pr)]
+    (if blocking?
+      (rmd->map @rslt)
+      (d/chain rslt rmd->map))))
+
 ;; Caution: Manifold uses interface for sind/source definition
 ;; Modify sink/source might need restart REPL
 (sc/def-sink KafkaProducerSink
   [^Producer producer]
   (isSynchronous [_] false)
-  (close [_] (.close producer))
+  (close
+   [this]
+   (.close producer)
+   (.markClosed this))
   (description
    [this]
    {:type (.getCanonicalName (class Producer))
     :sink? true
     :closed? (.markClosed this)})
-  (put 
-   [_ x blocking?]
-   (assert (produce-record? x) (str "invalid produce record: " x))
-   (let [{:keys [k v topic partition timestamp]} x
-         pr (ProducerRecord. topic partition timestamp k v)    
-         rslt (.send producer pr)]
-     (if blocking? 
-       (rmd->map @rslt) 
-       (defer/chain rslt rmd->map))))
   (put
-   [this x _ _ _]
-   ;;TODO use future cancel to implement timeout?
-   (.put this x false)))
+   [_ x blocking?]
+   (put* producer x blocking?))
+  (put
+   [this x blocking? _ _]
+   (.put this x blocking?)))
 
+#_{:clj-kondo/ignore [:unresolved-var]}
 (extend-protocol sc/Sinkable
   Producer
   (to-sink [producer]
     (->KafkaProducerSink producer)))
 
-(comment
-  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
-  (def->config clu)
-  (def a (ms/->sink (producer clu)))
-  (ms/put! a {:topic "hello" :k (.getBytes "hello") :v (.getBytes "world")})
-  @*1
-  )
-
-(defn source
-  [cluster-def group-id topics]
-  (let [config (merge (def->config cluster-def) {"group.id" group-id})
+(defn consumer
+  ^Consumer [cluster-def group-id topics]
+  (let [config (merge (def->config cluster-def) {"group.id" group-id "enable.auto.commit" "true"})
         ^Consumer consumer (KafkaConsumer. config (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
     (.subscribe consumer topics)
-    (.poll consumer (Duration/ofSeconds 300))))
+    consumer))
+
+(defn- cr->map
+  [^ConsumerRecord cr]
+  (when cr
+    (zipmap
+     [:offset :partition :key-size :value-size :timestamp
+      :timestamp-type :topic :key :value :headers]
+     [(.offset cr)
+      (.partition cr)
+      (.serializedKeySize cr)
+      (.serializedValueSize cr)
+      (.timestamp cr)
+      (.timestampType cr)
+      (.topic cr)
+      (.key cr)
+      (.value cr)
+      (.headers cr)])))
+
+(defn- take*
+  "returns a deferred of a KafkaConsumerSource, the implementation of take."
+  [^Consumer consumer a-ite duration default-val blocking?]
+  (let [f-poll #(.poll consumer duration)]
+    (-> (swap! a-ite
+            (fn [d-ite]
+              (if (or (nil? d-ite)
+                      (d/realized? d-ite) ;only re-poll when previous poll finished
+                      (and (d/realized? d-ite) (.isDrained @d-ite)))
+                (d/chain
+                 (if blocking?
+                   (d/success-deferred (f-poll))
+                   (d/future (f-poll)))
+                 #(-> (.iterator %) (ms/->source)))
+                d-ite)))
+        (d/chain #(.take % default-val blocking?) cr->map))))
+
+(sc/def-source KafkaConsumerSource
+  [^Consumer consumer a-ite duration]
+  (isSynchronous [_] true)
+  (close
+   [this]
+   (.close consumer)
+   (.markDrained this))
+  (description
+   [_]
+   {:type (.getCanonicalName (class consumer))
+    :metrics (.metrics consumer)
+    :subscription (.subscription consumer)})
+  (take
+   [_ default-val blocking?]
+   (let [d (take* consumer a-ite duration default-val blocking?)]
+     (if blocking? @d d))))
+
+#_{:clj-kondo/ignore [:unresolved-var]}
+(extend-protocol sc/Sourceable
+  Consumer
+  (to-source [consumer]
+    (->KafkaConsumerSource consumer (atom nil) (Duration/ofSeconds 5))))
+
+(comment
+  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
+  (def prod (ms/->sink (producer clu)))
+  (ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")})
+  @*1
+  (ms/close! prod)
+
+  (def con (ms/->source (consumer clu "group.hello" ["test"])))
+  (.isDrained con)
+  (.take con nil false)
+  (def take1 (ms/take! con))
+  (if (d/realized? take1) @take1 ::wait)
+  (ms/close! con)
+  )
