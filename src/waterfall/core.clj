@@ -1,9 +1,7 @@
 (ns waterfall.core
   "Core data structure"
   (:require
-   [manifold.deferred :as defer]
-   [manifold.stream :as ms]
-   [manifold.utils :as mu]
+   [manifold.stream :as ms] 
    [manifold.stream.core :as sc]
    [manifold.deferred :as d])
   (:import
@@ -58,7 +56,7 @@
         rslt (.send producer pr)]
     (if blocking?
       (rmd->map @rslt)
-      (defer/chain rslt rmd->map))))
+      (d/chain rslt rmd->map))))
 
 ;; Caution: Manifold uses interface for sind/source definition
 ;; Modify sink/source might need restart REPL
@@ -81,6 +79,7 @@
    [this x blocking? _ _]
    (.put this x blocking?)))
 
+#_{:clj-kondo/ignore [:unresolved-var]}
 (extend-protocol sc/Sinkable
   Producer
   (to-sink [producer]
@@ -144,6 +143,7 @@
    (let [d (take* consumer a-ite duration default-val blocking?)]
      (if blocking? @d d))))
 
+#_{:clj-kondo/ignore [:unresolved-var]}
 (extend-protocol sc/Sourceable
   Consumer
   (to-source [consumer]
@@ -160,6 +160,6 @@
   (.isDrained con)
   (.take con nil false)
   (def take1 (ms/take! con))
-  (if (defer/realized? take1) @take1 ::wait)
+  (if (d/realized? take1) @take1 ::wait)
   (ms/close! con)
   )
