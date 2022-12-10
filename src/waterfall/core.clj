@@ -4,7 +4,8 @@
    [manifold.deferred :as defer]
    [manifold.stream :as ms]
    [manifold.utils :as mu]
-   [manifold.stream.core :as sc])
+   [manifold.stream.core :as sc]
+   [manifold.deferred :as d])
   (:import
    (java.util Map)
    (org.apache.kafka.common.serialization ByteArraySerializer ByteArrayDeserializer)
@@ -109,8 +110,25 @@
       (.value cr)
       (.headers cr)])))
 
+(defn- take*
+  "returns a deferred of a KafkaConsumerSource, the implementation of take."
+  [^Consumer consumer a-ite duration default-val blocking?]
+  (let [f-poll #(.poll consumer duration)]
+    (-> (swap! a-ite
+            (fn [d-ite]
+              (if (or (nil? d-ite)
+                      (d/realized? d-ite) ;only re-poll when previous poll finished
+                      (and (d/realized? d-ite) (.isDrained @d-ite)))
+                (d/chain
+                 (if blocking?
+                   (d/success-deferred (f-poll))
+                   (d/future (f-poll)))
+                 #(-> (.iterator %) (ms/->source)))
+                d-ite)))
+        (d/chain #(.take % default-val blocking?) cr->map))))
+
 (sc/def-source KafkaConsumerSource
-  [^Consumer consumer a-ite]
+  [^Consumer consumer a-ite duration]
   (isSynchronous [_] true)
   (close
    [this]
@@ -118,22 +136,18 @@
    (.markDrained this))
   (description
    [_]
-   {:type (.getCanonicalName (class consumer))})
+   {:type (.getCanonicalName (class consumer))
+    :metrics (.metrics consumer)
+    :subscription (.subscription consumer)})
   (take
    [_ default-val blocking?]
-   (-> (swap! a-ite (fn [ite]
-                      (if (or (nil? ite) (.isDrained ite))
-                        (let [records (.poll consumer (Duration/ofSeconds 1))]
-                          (tap> {:cnt (.count records) :records records})
-                          (-> (.iterator records) (ms/->source)))
-                        ite)))
-       (.take default-val blocking?)
-       (defer/chain cr->map))))
+   (let [d (take* consumer a-ite duration default-val blocking?)]
+     (if blocking? @d d))))
 
 (extend-protocol sc/Sourceable
   Consumer
   (to-source [consumer]
-    (->KafkaConsumerSource consumer (atom nil))))
+    (->KafkaConsumerSource consumer (atom nil) (Duration/ofSeconds 5))))
 
 (comment
   (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
