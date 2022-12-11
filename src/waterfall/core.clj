@@ -128,14 +128,14 @@
 
 (sc/def-source KafkaConsumerSource
   [^Consumer consumer a-ite duration]
-  (isSynchronous [_] true)
+  (isSynchronous [_] false)
   (close
    [this]
    (.close consumer)
    (.markDrained this))
   (description
    [_]
-   {:type (.getCanonicalName (class consumer))
+   {:type "KafkaConsumerSource"
     :metrics (.metrics consumer)
     :subscription (.subscription consumer)})
   (take
