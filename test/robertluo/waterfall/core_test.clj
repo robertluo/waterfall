@@ -1,8 +1,8 @@
-(ns ^:intergration waterfall.core-test
+(ns ^:intergration robertluo.waterfall.core-test
   (:require
    [expectations.clojure.test
     :refer [defexpect expect expecting in]] 
-   [waterfall.core :as sut] 
+   [robertluo.waterfall.core :as sut] 
    [manifold.stream :as ms]))
 
 (def cluster
