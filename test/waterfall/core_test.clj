@@ -1,26 +1,12 @@
-(ns waterfall.core-test
+(ns ^:intergration waterfall.core-test
   (:require
    [expectations.clojure.test
     :refer [defexpect expect expecting in]] 
-   [waterfall.core :as sut]
-   [clojure.test :refer [use-fixtures]]
-   [manifold.stream :as ms])
-  (:import
-   (io.github.embeddedkafka EmbeddedKafka EmbeddedKafkaConfig)))
+   [waterfall.core :as sut] 
+   [manifold.stream :as ms]))
 
 (def cluster
-  {:cluster/servers [#:server{:name "localhost" :port 9092#_(EmbeddedKafkaConfig/defaultKafkaPort)}]})
-
-(defn with-kafka
-  [work]
-  (try
-    (EmbeddedKafka/start (EmbeddedKafkaConfig/defaultConfig))
-    (work)
-    (finally
-      (EmbeddedKafka/stop))))
-
-;;This is really slow, use it only neccessary!
-;(use-fixtures :once with-kafka)
+  {:cluster/servers [#:server{:name "localhost" :port 9092}]})
 
 (defexpect round-trip
   (with-open [prod (ms/->sink (sut/producer cluster))
@@ -36,6 +22,8 @@
        "consumer conform protocol"
        (expect false (.isSynchronous consumer))
        (expect {:subscription #{"test"}} (in (.description consumer)))
-       (ms/put! prod pr)
-       (expect {} (in @(ms/take! consumer)))
+       (.put prod pr true)
+       (expect {:topic "test"} (in (.take consumer nil true)))
+       (.put prod pr true)
+       (expect {:topic "test"} (in @(.take consumer nil false)))
        ))))
