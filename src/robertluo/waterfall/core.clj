@@ -1,15 +1,19 @@
-(ns waterfall.core
+(ns robertluo.waterfall.core
   "Core data structure"
-  (:require
-   [manifold.stream :as ms] 
-   [manifold.stream.core :as sc]
-   [manifold.deferred :as d])
-  (:import
-   (java.util Map)
-   (org.apache.kafka.common.serialization ByteArraySerializer ByteArrayDeserializer)
-   (org.apache.kafka.clients.producer KafkaProducer ProducerConfig Producer ProducerRecord RecordMetadata)
-   (org.apache.kafka.clients.consumer KafkaConsumer Consumer ConsumerRecord)
-   (java.time Duration)))
+  (:require [manifold.deferred :as d]
+            [manifold.stream :as ms]
+            [manifold.stream.core :as sc]
+            [robertluo.waterfall.util :as util])
+  (:import (java.time Duration)
+           (java.util Map)
+           (org.apache.kafka.clients.consumer Consumer ConsumerRecord KafkaConsumer)
+           (org.apache.kafka.clients.producer
+            KafkaProducer
+            Producer
+            ProducerConfig
+            ProducerRecord
+            RecordMetadata)
+           (org.apache.kafka.common.serialization ByteArrayDeserializer ByteArraySerializer)))
 
 ;; Kafka producer/consumer need config map.
 ;; Instead of using properties in java API, we introduce a concept of definition.
@@ -34,11 +38,11 @@
   [cluster-def]
   (KafkaProducer. ^Map (def->config cluster-def) (ByteArraySerializer.) (ByteArraySerializer.)))
 
-(defn- rmd->map
-  [^RecordMetadata rmd]
-  (zipmap [:offset :partition :key-size :value-size :timestamp :topic]
-          [(.offset rmd) (.partition rmd) (.serializedKeySize rmd)
-           (.serializedValueSize rmd) (.timestamp rmd) (.topic rmd)]))
+(util/scala-vo->map
+ rmd->map
+ RecordMetadata
+ [offset partition serializedKeySize
+  serializedValueSize timestamp topic])
 
 (defn- produce-record?
   [x]
@@ -85,29 +89,14 @@
   (to-sink [producer]
     (->KafkaProducerSink producer)))
 
-(defn consumer
-  ^Consumer [cluster-def group-id topics]
-  (let [config (merge (def->config cluster-def) {"group.id" group-id "enable.auto.commit" "true"})
-        ^Consumer consumer (KafkaConsumer. config (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
-    (.subscribe consumer topics)
-    consumer))
+;--------------------
+; Consumer
 
-(defn- cr->map
-  [^ConsumerRecord cr]
-  (when cr
-    (zipmap
-     [:offset :partition :key-size :value-size :timestamp
-      :timestamp-type :topic :key :value :headers]
-     [(.offset cr)
-      (.partition cr)
-      (.serializedKeySize cr)
-      (.serializedValueSize cr)
-      (.timestamp cr)
-      (.timestampType cr)
-      (.topic cr)
-      (.key cr)
-      (.value cr)
-      (.headers cr)])))
+(util/scala-vo->map
+ cr->map
+ ConsumerRecord
+ [offset partition serializedKeySize serializedValueSize
+  timestamp timestampType topic key value headers])
 
 (defn- take*
   "returns a deferred of a KafkaConsumerSource, the implementation of take."
@@ -143,17 +132,24 @@
    (let [d (take* consumer a-ite duration default-val blocking?)]
      (if blocking? @d d))))
 
-#_{:clj-kondo/ignore [:unresolved-var]}
-(extend-protocol sc/Sourceable
-  Consumer
-  (to-source [consumer]
-    (->KafkaConsumerSource consumer (atom nil) (Duration/ofSeconds 5))))
+(defn consumer
+  "retruns a manifold kafka consumer source."
+  [cluster-def group-id topics 
+   & {:keys [poll-duration] :as config
+      :or {poll-duration (Duration/ofSeconds 100)}}]
+  (let [config (merge config 
+                      (def->config cluster-def)
+                      {:group-id group-id
+                       :enable-auto-commit true})
+        consumer (KafkaConsumer. (util/->config-map config)
+                                 (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
+    (.subscribe consumer topics)
+    (->KafkaConsumerSource consumer (atom nil) poll-duration)))
 
 (comment
   (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
   (def prod (ms/->sink (producer clu)))
-  (ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")})
-  @*1
+  @(ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")}) 
   (ms/close! prod)
 
   (def con (ms/->source (consumer clu "group.hello" ["test"])))
