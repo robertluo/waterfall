@@ -1,8 +1,7 @@
 (ns robertluo.waterfall.core
   "Core data structure"
   (:require [manifold.deferred :as d]
-            [manifold.stream :as ms]
-            [manifold.stream.core :as sc]
+            [manifold.stream :as ms] 
             [robertluo.waterfall.util :as util])
   (:import (java.time Duration)
            (java.util Map)
@@ -23,41 +22,17 @@
  [offset partition serializedKeySize
   serializedValueSize timestamp topic])
 
-(defn put*
-  [^Producer producer x blocking?] 
-  (let [{:keys [k v topic partition timestamp]} x
-        pr (ProducerRecord. topic partition timestamp k v)
-        rslt (.send producer pr)]
-    (if blocking?
-      (rmd->map @rslt)
-      (d/chain rslt rmd->map))))
-
-;; Caution: Manifold uses interface for sind/source definition
-;; Modify sink/source might need restart REPL
-(sc/def-sink KafkaProducerSink
-  [^Producer producer]
-  (isSynchronous [_] false)
-  (close
-   [this]
-   (.close producer)
-   (.markClosed this))
-  (description
-   [this]
-   {:type (.getCanonicalName (class Producer))
-    :sink? true
-    :closed? (.markClosed this)})
-  (put
-   [_ x blocking?]
-   (put* producer x blocking?))
-  (put
-   [this x blocking? _ _]
-   (.put this x blocking?)))
-
 (defn producer
   [servers conf]
-  (->KafkaProducerSink
-   (let [config (-> conf (merge {:bootstrap-servers servers}) (util/->config-map))]
-     (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.)))))
+  (let [config (-> conf (merge {:bootstrap-servers servers}) (util/->config-map))
+        ^Producer prod (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.))
+        strm (ms/stream)]
+    (ms/on-closed strm #(.close prod))
+    (ms/splice
+     strm
+     (->> strm 
+          (ms/map (fn [{:keys [k v topic partition timestamp]}] 
+                    (rmd->map @(.send prod (ProducerRecord. topic partition timestamp k v)))))))))
 
 ;--------------------
 ; Consumer
@@ -68,64 +43,42 @@
  [offset partition serializedKeySize serializedValueSize
   timestamp timestampType topic key value headers])
 
-(defn- take*
-  "returns a deferred of a KafkaConsumerSource, the implementation of take."
-  [^Consumer consumer a-ite duration default-val blocking?]
-  (let [f-poll #(.poll consumer duration)]
-    (-> (swap! a-ite
-            (fn [d-ite]
-              (if (or (nil? d-ite)
-                      (d/realized? d-ite) ;only re-poll when previous poll finished
-                      (and (d/realized? d-ite) (.isDrained @d-ite)))
-                (d/chain
-                 (if blocking?
-                   (d/success-deferred (f-poll))
-                   (d/future (f-poll)))
-                 #(-> (.iterator %) (ms/->source)))
-                d-ite)))
-        (d/chain #(.take % default-val blocking?) cr->map))))
-
-(sc/def-source KafkaConsumerSource
-  [^Consumer consumer a-ite duration]
-  (isSynchronous [_] false)
-  (close
-   [this]
-   (.close consumer)
-   (.markDrained this))
-  (description
-   [_]
-   {:type "KafkaConsumerSource"
-    :metrics (.metrics consumer)
-    :subscription (.subscription consumer)})
-  (take
-   [_ default-val blocking?]
-   (let [d (take* consumer a-ite duration default-val blocking?)]
-     (if blocking? @d d))))
+(defn consumer-loop
+  [^Consumer consumer mailbox out-sink]
+  (loop []
+    (let [[k arg :as cmd] @(ms/take! mailbox)]
+      (if (= k :close)
+        (.close consumer)
+        (do
+          (case k
+            :subscibe (.subscribe consumer arg)
+            :poll 
+            (do (ms/put-all! out-sink (->> (.poll consumer cmd) (.iterator) (iterator-seq) (map cr->map)))
+                (ms/put! mailbox [:poll arg])))
+          (recur))))))
 
 (defn consumer
-  "retruns a manifold kafka consumer source."
-  [nodes group-id topics 
-   {:keys [poll-duration] :as conf
-    :or {poll-duration (Duration/ofSeconds 100)}}]
-  (let [config (-> conf (merge {:bootstrap-servers nodes
-                                :group-id group-id
-                                :enable-auto-commit true})
-                   (util/->config-map))
-        consumer (KafkaConsumer. (util/->config-map config)
-                                 (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
-    (.subscribe consumer topics)
-    (->KafkaConsumerSource consumer (atom nil) poll-duration)))
+  [nodes group-id topics {:keys [poll-duration] :as conf :or {poll-duration (Duration/ofSeconds 10)}}]
+  (let [conr (-> conf
+                 (merge {:bootstrap-servers nodes
+                         :group-id group-id})
+                 util/->config-map
+                 (KafkaConsumer. (ByteArrayDeserializer.) (ByteArrayDeserializer.)))
+        mailbox (ms/stream)
+        out-sink (ms/stream)]
+    (ms/put! mailbox [:subscibe topics]) 
+    (ms/on-closed out-sink (fn [] @(ms/put! mailbox [:close])))
+    (d/future (consumer-loop conr mailbox out-sink))
+    (ms/put! mailbox [:poll poll-duration])
+    (ms/source-only out-sink)))
 
 (comment
   (def nodes "localhost:9092")
   (def prod (producer nodes {}))
-  @(ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")}) 
+  (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
+  (ms/consume #(println "producer: " %) prod)
   (ms/close! prod)
-
-  (def con (consumer nodes "group.hello" ["test"] {}))
-  (.isDrained con)
-  (.take con nil false)
-  (def take1 (ms/take! con))
-  (if (d/realized? take1) @take1 ::wait)
-  (ms/close! con)
+  (def conr (consumer nodes "test.group" ["test"] {})) 
+  (ms/consume #(println "consumer: " %) conr)
+  (ms/close! conr)
   )

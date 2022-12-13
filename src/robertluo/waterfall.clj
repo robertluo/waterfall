@@ -5,7 +5,9 @@
     [core :as core]]))
 
 (defn producer
-  "Returns a manifold sink of kafka producer.
+  "Returns a manifold stream of kafka producer. Can accept map value put onto it,
+   and output the putting result. If not intested in the result, could use 
+   `manifold.stream/sink-only` on it.
     - `nodes`: bootstrap servers urls, e.g. `localhost:9092`
     - `conf`: optional config `conf`."
   ([nodes]
@@ -27,8 +29,11 @@
 (comment
   (require '[manifold.stream :as ms])
   (def nodes "localhost:9092")
-  (with-open [prod (producer nodes)
-              conr (consumer nodes "test.group" ["test"])]
-    (ms/put! prod {:topic "test" :v (.getBytes "hello, world!")})
-    (ms/take! conr)) 
+  (def conr (consumer nodes "test.group" ["test"]))
+  (def prod (producer nodes)) 
+  (ms/consume (constantly nil) prod)
+  (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
+  (ms/consume prn conr)
+  (ms/close! prod)
+  (ms/close! conr)
   )

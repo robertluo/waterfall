@@ -17,9 +17,7 @@
        (expect {:topic "test"} (in (.put prod pr true)))
        (expect {:topic "test"} (in @(.put prod pr false))))
       (expecting
-       "consumer conform protocol"
-       (expect false (.isSynchronous consumer))
-       (expect {:subscription #{"test"}} (in (.description consumer)))
+       "consumer conform protocol" 
        (.put prod pr true)
        (expect {:topic "test"} (in (.take consumer nil true)))
        (.put prod pr true)
