@@ -2,15 +2,13 @@
   (:require
    [expectations.clojure.test
     :refer [defexpect expect expecting in]] 
-   [robertluo.waterfall.core :as sut] 
-   [manifold.stream :as ms]))
+   [robertluo.waterfall.core :as sut]))
 
-(def cluster
-  {:cluster/servers [#:server{:name "localhost" :port 9092}]})
+(def nodes "localhost:9092")
 
 (defexpect round-trip
-  (with-open [prod (ms/->sink (sut/producer cluster))
-              consumer (ms/->source (sut/consumer cluster "test.group" ["test"]))]
+  (with-open [prod (sut/producer nodes)
+              consumer (sut/consumer nodes "test.group" ["test"])]
     (let [pr {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")}] 
       (expecting
        "producer conform protocol"

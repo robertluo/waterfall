@@ -18,25 +18,7 @@
 ;; Kafka producer/consumer need config map.
 ;; Instead of using properties in java API, we introduce a concept of definition.
 
-(def schema-registry
-  {:non-empty-str    [:string {:min 1}]
-   :server/name      :non-empty-str
-   :server/port      pos-int?
-   ::server          [:map :server/name :server/port]
-   :cluster/servers  [:+ ::server]})
 
-(defn def->config
-  "returns Kafka config map for `definition`"
-  [definition]
-  (letfn [(svr->str [{:server/keys [name port]}] (str name ":" port)) 
-          (process [[k const f]] (when-let [v (get definition k)] [const (f v)]))]
-    (let [processors [[:cluster/servers ProducerConfig/BOOTSTRAP_SERVERS_CONFIG
-                       #(transduce (comp (map svr->str) (interpose ";")) str %)]]]
-      (into {} (comp (map process) (filter identity)) processors))))
-
-(defn producer
-  [cluster-def]
-  (KafkaProducer. ^Map (def->config cluster-def) (ByteArraySerializer.) (ByteArraySerializer.)))
 
 (util/scala-vo->map
  rmd->map
@@ -83,11 +65,11 @@
    [this x blocking? _ _]
    (.put this x blocking?)))
 
-#_{:clj-kondo/ignore [:unresolved-var]}
-(extend-protocol sc/Sinkable
-  Producer
-  (to-sink [producer]
-    (->KafkaProducerSink producer)))
+(defn producer
+  [servers & {:as conf}]
+  (->KafkaProducerSink
+   (let [config (-> conf (merge {:bootstrap-servers servers}) (util/->config-map))]
+     (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.)))))
 
 ;--------------------
 ; Consumer
@@ -134,25 +116,25 @@
 
 (defn consumer
   "retruns a manifold kafka consumer source."
-  [cluster-def group-id topics 
-   & {:keys [poll-duration] :as config
+  [nodes group-id topics 
+   & {:keys [poll-duration] :as conf
       :or {poll-duration (Duration/ofSeconds 100)}}]
-  (let [config (merge config 
-                      (def->config cluster-def)
-                      {:group-id group-id
-                       :enable-auto-commit true})
+  (let [config (-> conf (merge {:bootstrap-servers nodes
+                                :group-id group-id
+                                :enable-auto-commit true})
+                   (util/->config-map))
         consumer (KafkaConsumer. (util/->config-map config)
                                  (ByteArrayDeserializer.) (ByteArrayDeserializer.))]
     (.subscribe consumer topics)
     (->KafkaConsumerSource consumer (atom nil) poll-duration)))
 
 (comment
-  (def clu {:cluster/servers [#:server{:name "localhost" :port 9092}]})
-  (def prod (ms/->sink (producer clu)))
+  (def nodes "localhost:9092")
+  (def prod (producer nodes))
   @(ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")}) 
   (ms/close! prod)
 
-  (def con (ms/->source (consumer clu "group.hello" ["test"])))
+  (def con (consumer nodes "group.hello" ["test"]))
   (.isDrained con)
   (.take con nil false)
   (def take1 (ms/take! con))

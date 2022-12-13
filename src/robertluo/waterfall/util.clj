@@ -20,6 +20,6 @@
        (zipmap ~keys ~values))))
 
 (comment
-  (->config-map {:group-id "test"})
+  (->config-map {:bootstrap-servers "localhost:9092" :group-id "test"})
   (macroexpand-1 '(scala-vo->map my Duration [k v]))
   )
