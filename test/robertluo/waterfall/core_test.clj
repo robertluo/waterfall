@@ -7,8 +7,8 @@
 (def nodes "localhost:9092")
 
 (defexpect round-trip
-  (with-open [prod (sut/producer nodes)
-              consumer (sut/consumer nodes "test.group" ["test"])]
+  (with-open [prod (sut/producer nodes {})
+              consumer (sut/consumer nodes "test.group" ["test"] {})]
     (let [pr {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")}] 
       (expecting
        "producer conform protocol"

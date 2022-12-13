@@ -9,16 +9,13 @@
            (org.apache.kafka.clients.consumer Consumer ConsumerRecord KafkaConsumer)
            (org.apache.kafka.clients.producer
             KafkaProducer
-            Producer
-            ProducerConfig
+            Producer 
             ProducerRecord
             RecordMetadata)
            (org.apache.kafka.common.serialization ByteArrayDeserializer ByteArraySerializer)))
 
-;; Kafka producer/consumer need config map.
-;; Instead of using properties in java API, we introduce a concept of definition.
-
-
+;----------------------------
+; producer
 
 (util/scala-vo->map
  rmd->map
@@ -26,17 +23,8 @@
  [offset partition serializedKeySize
   serializedValueSize timestamp topic])
 
-(defn- produce-record?
-  [x]
-  (and (map? x)
-       (let [{:keys [k v topic partition timestamp]} x]
-         (and (not-empty topic) (bytes? k) (bytes? v)
-              (or (nil? partition) (pos-int? partition))
-              (or (nil? timestamp) (pos-int? timestamp))))))
-
 (defn put*
-  [^Producer producer x blocking?]
-  (assert (produce-record? x) (str "invalid produce record: " x))
+  [^Producer producer x blocking?] 
   (let [{:keys [k v topic partition timestamp]} x
         pr (ProducerRecord. topic partition timestamp k v)
         rslt (.send producer pr)]
@@ -66,7 +54,7 @@
    (.put this x blocking?)))
 
 (defn producer
-  [servers & {:as conf}]
+  [servers conf]
   (->KafkaProducerSink
    (let [config (-> conf (merge {:bootstrap-servers servers}) (util/->config-map))]
      (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.)))))
@@ -117,8 +105,8 @@
 (defn consumer
   "retruns a manifold kafka consumer source."
   [nodes group-id topics 
-   & {:keys [poll-duration] :as conf
-      :or {poll-duration (Duration/ofSeconds 100)}}]
+   {:keys [poll-duration] :as conf
+    :or {poll-duration (Duration/ofSeconds 100)}}]
   (let [config (-> conf (merge {:bootstrap-servers nodes
                                 :group-id group-id
                                 :enable-auto-commit true})
@@ -130,11 +118,11 @@
 
 (comment
   (def nodes "localhost:9092")
-  (def prod (producer nodes))
+  (def prod (producer nodes {}))
   @(ms/put! prod {:topic "test" :k (.getBytes "hello") :v (.getBytes "world")}) 
   (ms/close! prod)
 
-  (def con (consumer nodes "group.hello" ["test"]))
+  (def con (consumer nodes "group.hello" ["test"] {}))
   (.isDrained con)
   (.take con nil false)
   (def take1 (ms/take! con))
