@@ -2,7 +2,8 @@
   "Core data structure"
   (:require [manifold.deferred :as d]
             [manifold.stream :as ms] 
-            [robertluo.waterfall.util :as util])
+            [robertluo.waterfall.util :as util]
+            [clojure.core.match :refer [match]])
   (:import (java.time Duration)
            (java.util Map)
            (org.apache.kafka.clients.consumer Consumer ConsumerRecord KafkaConsumer)
@@ -46,16 +47,15 @@
 (defn consumer-loop
   [^Consumer consumer mailbox out-sink]
   (loop []
-    (let [[k arg :as cmd] @(ms/take! mailbox)]
-      (if (= k :close)
-        (.close consumer)
-        (do
-          (case k
-            :subscibe (.subscribe consumer arg)
-            :poll 
-            (do (ms/put-all! out-sink (->> (.poll consumer cmd) (.iterator) (iterator-seq) (map cr->map)))
-                (ms/put! mailbox [:poll arg])))
-          (recur))))))
+    (when-not 
+     (= ::stop
+        (match @(ms/take! mailbox)
+          [:close] (do (.close consumer) ::stop)
+          [:subscibe topics] (.subscribe consumer topics)
+          [:poll duration]
+          (do (ms/put-all! out-sink (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map)))
+              (ms/put! mailbox [:poll duration]))))
+      (recur))))
 
 (defn consumer
   [nodes group-id topics {:keys [poll-duration] :as conf :or {poll-duration (Duration/ofSeconds 10)}}]
@@ -80,5 +80,5 @@
   (ms/close! prod)
   (def conr (consumer nodes "test.group" ["test"] {})) 
   (ms/consume #(println "consumer: " %) conr)
-  (ms/close! conr)
+  (ms/close! conr) 
   )
