@@ -27,13 +27,15 @@
   [servers conf]
   (let [config (-> conf (merge {:bootstrap-servers servers}) (util/->config-map))
         ^Producer prod (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.))
-        strm (ms/stream)]
+        strm (ms/stream)
+        s' (ms/stream)
+        sending (fn [x]
+                  (let [{:keys [k v topic partition timestamp]} x
+                        rmd (rmd->map @(.send prod (ProducerRecord. topic partition timestamp k v)))]
+                    (ms/put! s' rmd)))]
     (ms/on-closed strm #(.close prod))
-    (ms/splice
-     strm
-     (->> strm 
-          (ms/map (fn [{:keys [k v topic partition timestamp]}] 
-                    (rmd->map @(.send prod (ProducerRecord. topic partition timestamp k v)))))))))
+    (ms/connect-via strm sending s')
+    (ms/splice strm s')))
 
 ;--------------------
 ; Consumer
