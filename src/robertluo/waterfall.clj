@@ -1,13 +1,11 @@
 (ns robertluo.waterfall
   "API namespace for the library"
   (:require 
-   [robertluo.waterfall
-    [core :as core]]))
+   [robertluo.waterfall.core :as core]))
 
 (defn producer
   "Returns a manifold stream of kafka producer. Can accept map value put onto it,
-   and output the putting result. If not intested in the result, could use 
-   `manifold.stream/sink-only` on it.
+   and output the putting result.
     - `nodes`: bootstrap servers urls, e.g. `localhost:9092`
     - `conf`: optional config `conf`."
   ([nodes]
@@ -30,10 +28,11 @@
   (require '[manifold.stream :as ms])
   (def nodes "localhost:9092")
   (def conr (consumer nodes "test.group" ["test"]))
-  (def prod (producer nodes)) 
+  (ms/consume prn conr)
+
+  (def prod (producer nodes))
   (ms/consume (constantly nil) prod)
   (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
-  (ms/consume prn conr)
   (ms/close! prod)
   (ms/close! conr)
   )
