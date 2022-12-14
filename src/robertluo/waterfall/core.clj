@@ -28,14 +28,11 @@
   (let [config (-> conf (merge {:bootstrap-servers servers}) (util/->config-map))
         ^Producer prod (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.))
         strm (ms/stream)
-        s' (ms/stream)
         sending (fn [x]
-                  (let [{:keys [k v topic partition timestamp]} x
-                        rmd (rmd->map @(.send prod (ProducerRecord. topic partition timestamp k v)))]
-                    (ms/put! s' rmd)))]
-    (ms/on-closed strm #(.close prod))
-    (ms/connect-via strm sending s')
-    (ms/splice strm s')))
+                  (let [{:keys [k v topic partition timestamp]} x]
+                    (rmd->map @(.send prod (ProducerRecord. topic partition timestamp k v)))))]
+    (ms/on-closed strm #(.close prod)) 
+    (ms/splice strm (ms/map sending strm))))
 
 ;--------------------
 ; Consumer
@@ -56,24 +53,25 @@
         (when-not
          (= ::stop
             (let [cmd @(ms/take! mailbox)]
+              (tap> cmd)
               (match cmd
-               [:close] (do (.close consumer) ::stop)
-               [:subscibe topics] (.subscribe consumer topics)
-               [:seek :beginning] (.seekToBeginning consumer (.assignment consumer))
-               [:seek :end] (.seekToEnd consumer (.assignment consumer))
-               [:resume duration] (do (when (.paused consumer)
-                                        (.resume consumer (.assignment consumer)))
-                                      (.commitSync consumer)
-                                      (cmd-self [:poll duration]))
-               [:poll duration]
-               (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))]
-                 (when-not (.paused consumer)
-                   (.pause consumer (.assignment consumer)))
-                 (d/chain (ms/put-all! out-sink (f-poll))
-                          (fn [rslt]
-                            (when rslt
-                              (cmd-self [:resume duration])))))
-               :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
+                [:close] (do (.close consumer) ::stop)
+                [:subscibe topics] (.subscribe consumer topics)
+                [:seek :beginning] (.seekToBeginning consumer (.assignment consumer))
+                [:seek :end] (.seekToEnd consumer (.assignment consumer))
+                [:resume duration] (do (when (.paused consumer)
+                                         (.resume consumer (.assignment consumer)))
+                                       (.commitSync consumer)
+                                       (cmd-self [:poll duration]))
+                [:poll duration]
+                (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))]
+                  (when-not (.paused consumer)
+                    (.pause consumer (.assignment consumer)))
+                  (d/chain (ms/put-all! out-sink (f-poll))
+                           (fn [rslt]
+                             (when rslt
+                               (cmd-self [:resume duration])))))
+                :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
           (recur))))
     cmd-self))
 
@@ -101,7 +99,7 @@
   (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
   (ms/consume #(println "producer: " %) prod)
   (ms/close! prod)
-  (def conr (consumer nodes "test.group" ["test"] {})) 
+  (def conr (consumer nodes "test.group" ["test"] {:position :beginning})) 
   (ms/consume #(println "consumer: " %) conr)
   (ms/close! conr) 
   )
