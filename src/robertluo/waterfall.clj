@@ -53,10 +53,11 @@
 (comment 
   (def nodes "localhost:9092")
   (def conr (consumer nodes "test.group" ["test"])) 
-  (def conr2 (shaped-source [:value-only :edn :byte-array] conr))
+  (def conr2 (shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)] conr))
   (ms/consume prn conr2)
 
-  (def prod (->> (ignore (producer nodes)) (shaped-sink [:value-only :edn :byte-array [:topic "test"]]))) 
+  (def prod (->> (ignore (producer nodes)) 
+                 (shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]))) 
   (ms/put! prod "Hello, world!")
   (ms/close! prod)
   (ms/close! conr)
