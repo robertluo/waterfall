@@ -1,11 +1,14 @@
 (ns robertluo.waterfall
   "API namespace for the library"
   (:require 
-   [robertluo.waterfall.core :as core]))
+   [robertluo.waterfall 
+    [core :as core]
+    [shape :as shape]]
+   [manifold.stream :as ms]))
 
 (defn producer
   "Returns a manifold stream of kafka producer. Can accept map value put onto it,
-   and output the putting result.
+   and output the putting result. If your do not care about the output, wrap it with `ignore`.
     - `nodes`: bootstrap servers urls, e.g. `localhost:9092`
     - `conf`: optional config `conf`."
   ([nodes]
@@ -24,15 +27,37 @@
   ([nodes group-id topics {:as conf}]
    (core/consumer nodes group-id topics conf)))
 
-(comment
-  (require '[manifold.stream :as ms])
-  (def nodes "localhost:9092")
-  (def conr (consumer nodes "test.group" ["test"]))
-  (ms/consume prn conr)
+(defn ignore
+  "ignore a stream `strm`'s output, return `strm` itself."
+  [strm]
+  (ms/consume (constantly nil) strm)
+  strm)
 
-  (def prod (producer nodes))
-  (ms/consume (constantly nil) prod)
-  (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
+(defn shaped-source
+  "returns a shaped source stream on `src`"
+  [shape-def src]
+  (-> (shape/deserialize shape-def)
+      (map)
+      (ms/transform src)))
+
+(defn shaped-sink
+  "returns a shaped sink stream on `sink`"
+  [shape-def sink]
+  (let [strm (ms/stream)]
+    (-> (shape/serialize shape-def)
+        (map)
+        (ms/transform strm)
+        (ms/connect sink))
+    strm))
+
+(comment 
+  (def nodes "localhost:9092")
+  (def conr (consumer nodes "test.group" ["test"])) 
+  (def conr2 (shaped-source [:value-only :edn :byte-array] conr))
+  (ms/consume prn conr2)
+
+  (def prod (->> (ignore (producer nodes)) (shaped-sink [:value-only :edn :byte-array [:topic "test"]]))) 
+  (ms/put! prod "Hello, world!")
   (ms/close! prod)
   (ms/close! conr)
   )

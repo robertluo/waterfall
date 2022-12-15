@@ -29,8 +29,8 @@
         ^Producer prod (KafkaProducer. ^Map config (ByteArraySerializer.) (ByteArraySerializer.))
         strm (ms/stream)
         sending (fn [x]
-                  (let [{:keys [k v topic partition timestamp]} x]
-                    (rmd->map @(.send prod (ProducerRecord. topic partition timestamp k v)))))]
+                  (let [{:keys [key value topic partition timestamp]} x]
+                    (rmd->map @(.send prod (ProducerRecord. topic partition timestamp key value)))))]
     (ms/on-closed strm #(.close prod)) 
     (ms/splice strm (ms/map sending strm))))
 
