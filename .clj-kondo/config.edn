@@ -1,4 +1,6 @@
 {:lint-as
  {expectations.clojure.test/defexpect clojure.test/deftest
   manifold.stream.core/def-sink clojure.core/deftype
-  manifold.stream.core/def-source clojure.core/deftype}}
+  manifold.stream.core/def-source clojure.core/deftype
+  robertluo.waterfall.util/scala-vo->map clojure.core/defmulti}
+ :config-in-call {robertluo.waterfall.util/scala-vo->map {:linters  {:unresolved-symbol {:level :off}}}}}
