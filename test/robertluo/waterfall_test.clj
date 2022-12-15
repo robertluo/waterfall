@@ -1,11 +1,10 @@
 (ns robertluo.waterfall-test
-  (:require
-   [robertluo.waterfall :as sut]
-   [clojure.test :refer [use-fixtures]]
-   [expectations.clojure.test :refer [defexpect expecting expect in]]
-   [manifold.stream :as ms])
-  (:import
-   (io.github.embeddedkafka EmbeddedKafka EmbeddedKafkaConfig)))
+  (:require [clojure.test :refer [use-fixtures]]
+            [expectations.clojure.test :refer [defexpect expect]]
+            [robertluo.waterfall :as sut]
+            [robertluo.waterfall.shape :as shape]
+            [manifold.stream :as ms])
+  (:import (io.github.embeddedkafka EmbeddedKafka EmbeddedKafkaConfig)))
 
 (defn kafka-fixture
   [work]
@@ -19,10 +18,11 @@
 (def nodes (str "localhost:" (EmbeddedKafkaConfig/defaultKafkaPort)))
 
 (defexpect round-trip
-  (with-open [prod (sut/producer nodes)
-        ;conr (sut/consumer nodes "test.group" ["test"] {:position :beginning})
-              ]
-    (ms/connect (repeat 3 {:topic "test" :v (.getBytes "Hello")}) prod) 
-    (expect 2 (-> (ms/stream->seq prod 100) count))
-    ;(expect 2 (-> (ms/stream->seq conr 100) count))
-    ))
+  (with-open [test-consumer (-> (sut/consumer nodes "test.group" ["test"])
+                                (sut/shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)]))
+              test-producer (-> (sut/producer nodes)
+                                (sut/ignore)
+                                (sut/shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]))]
+    (ms/consume prn test-consumer)
+    (expect true @(ms/put! test-producer "Hello, world!")
+            "Run without exception!")))
