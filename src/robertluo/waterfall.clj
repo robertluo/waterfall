@@ -34,17 +34,19 @@
   strm)
 
 (defn shaped-source
-  "returns a shaped source stream on `src`"
-  [shape-def src]
-  (-> (shape/deserialize shape-def)
-      (map)
-      (ms/transform src)))
+  "returns a shaped source stream on `src`, will close source if this is closed."
+  [src shapes]
+  (let [strm (-> (shape/deserialize shapes)
+                 (map)
+                 (ms/transform src))]
+    (ms/on-drained strm #(ms/close! src))
+    strm))
 
 (defn shaped-sink
   "returns a shaped sink stream on `sink`"
-  [shape-def sink]
+  [sink shapes]
   (let [strm (ms/stream)]
-    (-> (shape/serialize shape-def)
+    (-> (shape/serialize shapes)
         (map)
         (ms/transform strm)
         (ms/connect sink))
@@ -52,13 +54,13 @@
 
 (comment 
   (def nodes "localhost:9092")
-  (def conr (consumer nodes "test.group" ["test"])) 
-  (def conr2 (shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)] conr))
-  (ms/consume prn conr2)
+  (def test-consumer (-> (consumer nodes "test.group" ["test"])
+                         (shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)])))
+  (ms/consume prn test-consumer)
 
-  (def prod (->> (ignore (producer nodes)) 
-                 (shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]))) 
-  (ms/put! prod "Hello, world!")
-  (ms/close! prod)
-  (ms/close! conr)
+  (def test-producer (-> (ignore (producer nodes))
+                         (shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]))) 
+  (ms/put! test-producer "Hello, world!")
+  (ms/close! test-producer)
+  (ms/close! test-consumer)
   )
