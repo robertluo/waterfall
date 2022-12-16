@@ -3,7 +3,8 @@
   (:refer-clojure :exclude [byte-array])
   (:require
    [clojure.edn :as edn]
-   [robertluo.waterfall.util :as util]))
+   [robertluo.waterfall.util :as util]
+   [cognitect.transit :as transit]))
 
 (defn- updater
   "returns a function which apply `f` to both `key` and `value` if it's not nil."
@@ -95,13 +96,37 @@
 
 (util/optional-require
  [taoensso.nippy :as nippy] 
- (defn nippy [] 
+ (defn nippy 
+   "A shape that direct maps data/bytes"
+   [] 
    (->Shape
     10 
     (updater nippy/freeze)
     (updater nippy/thaw))))
 
-(comment
-  (require '[taoensso.nippy])
+(comment 
   (:stage (nippy))
+  )
+
+(util/optional-require
+ [cognitect.transit :as transit]
+ (defn transit
+   "A shape that direct maps data/bytes.
+    - `format`: transit supporting format, one of `:msgpack`, `:json`, `:json-verbose`."
+   [format]
+   (->Shape 
+    10
+    (fn [m]
+      (with-open [^java.io.ByteArrayOutputStream out (java.io.ByteArrayOutputStream.)]
+        (let [wtr (transit/writer out format)]
+          (transit/write wtr m)
+          (.toByteArray out))))
+    (fn [bs]
+      (with-open [^java.io.ByteArrayInputStream in (java.io.ByteArrayInputStream. bs)]
+        (let [rdr (transit/reader in format)]
+          (transit/read rdr)))))))
+
+(comment 
+  ((:ser (transit :json-verbose)) {:foo "bar"})
+  ((:des (transit :json-verbose)) *1)
   )
