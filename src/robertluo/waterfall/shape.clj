@@ -7,8 +7,11 @@
   "returns a function which apply `f` to both `key` and `value` if it's not nil."
   [f]
   (fn [m]
-    (let [f (fn [v] (when v (f v)))]
-      (-> m (update :key f) (update :value f)))))
+    (let [update-if (fn [m k f] 
+                      (if-not (nil? (get m k))
+                        (update m k f)
+                        m))]
+      (-> m (update-if :key f) (update-if :value f)))))
 
 ;;A shape is a conversion definition. It has:
 ;; - :stage, a number indicate when should it be called, high = serial early/des late

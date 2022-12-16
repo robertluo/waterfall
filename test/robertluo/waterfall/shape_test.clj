@@ -4,7 +4,7 @@
    [expectations.clojure.test :refer [defexpect expect]]))
 
 (defexpect serialize
-  (expect {:value "{:foo bar}" :key nil} ((s/serialize [(s/value-only) (s/edn)]) {:foo 'bar})
+  (expect {:value "{:foo bar}"} ((s/serialize [(s/value-only) (s/edn)]) {:foo 'bar})
           "serialize value-only and edn")
   (expect {:key "3" :value "5"} ((s/serialize [(s/edn) (s/key-value)]) [3 5])
           "serialize key-value and edn"))

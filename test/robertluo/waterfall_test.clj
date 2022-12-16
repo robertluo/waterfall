@@ -18,12 +18,13 @@
 (def nodes (str "localhost:" (EmbeddedKafkaConfig/defaultKafkaPort)))
 
 (defexpect round-trip
-  (let [collector (atom [])]
+  (let [collector (atom [])
+        shapes [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]]
     (with-open [test-consumer (-> (sut/consumer nodes "test.group" ["test"])
-                                  (sut/shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)]))
+                                  (sut/shaped-source shapes))
                 test-producer (-> (sut/producer nodes)
                                   (sut/ignore)
-                                  (sut/shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]))]
+                                  (sut/shaped-sink shapes))]
       (ms/consume #(do (swap! collector conj %) nil) test-consumer)
       (expect true @(ms/put-all! test-producer (range 1000))
               "Run without exception!") 
