@@ -3,8 +3,7 @@
   (:refer-clojure :exclude [byte-array])
   (:require
    [clojure.edn :as edn]
-   [robertluo.waterfall.util :as util]
-   [cognitect.transit :as transit]))
+   [robertluo.waterfall.util :as util]))
 
 (defn- updater
   "returns a function which apply `f` to both `key` and `value` if it's not nil."
