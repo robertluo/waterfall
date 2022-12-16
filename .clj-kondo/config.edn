@@ -3,4 +3,6 @@
   manifold.stream.core/def-sink clojure.core/deftype
   manifold.stream.core/def-source clojure.core/deftype
   robertluo.waterfall.util/scala-vo->map clojure.core/defmulti}
- :config-in-call {robertluo.waterfall.util/scala-vo->map {:linters  {:unresolved-symbol {:level :off}}}}}
+ :config-in-call {robertluo.waterfall.util/scala-vo->map {:linters  {:unresolved-symbol {:level :off}}}
+                  robertluo.waterfall.util/optional-require {:linters {:unresolved-symbol {:level :off}
+                                                                       :unresolved-namespace {:level :off}}}}}

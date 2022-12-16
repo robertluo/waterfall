@@ -1,7 +1,9 @@
 (ns robertluo.waterfall.shape
   "Transformation functions of shapes of event data."
   (:refer-clojure :exclude [byte-array])
-  (:require [clojure.edn :as edn]))
+  (:require
+   [clojure.edn :as edn]
+   [robertluo.waterfall.util :as util]))
 
 (defn- updater
   "returns a function which apply `f` to both `key` and `value` if it's not nil."
@@ -89,4 +91,17 @@
   ((serialize [(byte-array) (edn) (value-only)]) {:string "hello"}) 
   ((deserialize [(byte-array) (value-only) (edn)]) {:value (.getBytes "3")})
   ((serialize [(edn) (value-only) (topic "test")]) {:foo "hello"})
+  )
+
+(util/optional-require
+ [taoensso.nippy :as nippy] 
+ (defn nippy [] 
+   (->Shape
+    10 
+    (updater nippy/freeze)
+    (updater nippy/thaw))))
+
+(comment
+  (require '[taoensso.nippy])
+  (:stage (nippy))
   )

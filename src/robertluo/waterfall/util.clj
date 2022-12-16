@@ -19,7 +19,18 @@
        [^{:tag clazz} ~obj]
        (zipmap ~keys ~values))))
 
+(defmacro optional-require
+  [require-clause & body]
+  (when 
+   (try
+     (require require-clause)
+     true
+     (catch Exception _ 
+       false))
+    `(do ~@body)))
+
 (comment
   (->config-map {:bootstrap-servers "localhost:9092" :group-id "test"})
-  (macroexpand-1 '(scala-vo->map my Duration [k v]))
+  (macroexpand-1 '(scala-vo->map my Duration [k v])) 
+  (macroexpand-1 '(optional-require clojure.core (defn a [] "ok")))
   )
