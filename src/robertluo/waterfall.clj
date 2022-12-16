@@ -1,11 +1,14 @@
 (ns robertluo.waterfall
   "API namespace for the library"
   (:require 
-   [robertluo.waterfall.core :as core]))
+   [robertluo.waterfall 
+    [core :as core]
+    [shape :as shape]]
+   [manifold.stream :as ms]))
 
 (defn producer
   "Returns a manifold stream of kafka producer. Can accept map value put onto it,
-   and output the putting result.
+   and output the putting result. If your do not care about the output, wrap it with `ignore`.
     - `nodes`: bootstrap servers urls, e.g. `localhost:9092`
     - `conf`: optional config `conf`."
   ([nodes]
@@ -24,15 +27,40 @@
   ([nodes group-id topics {:as conf}]
    (core/consumer nodes group-id topics conf)))
 
-(comment
-  (require '[manifold.stream :as ms])
-  (def nodes "localhost:9092")
-  (def conr (consumer nodes "test.group" ["test"]))
-  (ms/consume prn conr)
+(defn ignore
+  "ignore a stream `strm`'s output, return `strm` itself."
+  [strm]
+  (ms/consume (constantly nil) strm)
+  strm)
 
-  (def prod (producer nodes))
-  (ms/consume (constantly nil) prod)
-  (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
-  (ms/close! prod)
-  (ms/close! conr)
+(defn shaped-source
+  "returns a shaped source stream on `src`, will close source if this is closed."
+  [src shapes]
+  (let [strm (-> (shape/deserialize shapes)
+                 (map)
+                 (ms/transform src))]
+    (ms/on-drained strm #(ms/close! src))
+    strm))
+
+(defn shaped-sink
+  "returns a shaped sink stream on `sink`"
+  [sink shapes]
+  (let [strm (ms/stream)]
+    (-> (shape/serialize shapes)
+        (map)
+        (ms/transform strm)
+        (ms/connect sink))
+    strm))
+
+(comment 
+  (def nodes "localhost:9092")
+  (def test-consumer (-> (consumer nodes "test.group" ["test"])
+                         (shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)])))
+  (ms/consume prn test-consumer)
+
+  (def test-producer (-> (ignore (producer nodes))
+                         (shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]))) 
+  (ms/put! test-producer "Hello, world!")
+  (ms/close! test-producer)
+  (ms/close! test-consumer)
   )
