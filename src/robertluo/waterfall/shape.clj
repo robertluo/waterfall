@@ -1,7 +1,9 @@
 (ns robertluo.waterfall.shape
   "Transformation functions of shapes of event data."
   (:refer-clojure :exclude [byte-array])
-  (:require [clojure.edn :as edn]))
+  (:require
+   [clojure.edn :as edn]
+   [robertluo.waterfall.util :as util]))
 
 (defn- updater
   "returns a function which apply `f` to both `key` and `value` if it's not nil."
@@ -89,4 +91,41 @@
   ((serialize [(byte-array) (edn) (value-only)]) {:string "hello"}) 
   ((deserialize [(byte-array) (value-only) (edn)]) {:value (.getBytes "3")})
   ((serialize [(edn) (value-only) (topic "test")]) {:foo "hello"})
+  )
+
+(util/optional-require
+ [taoensso.nippy :as nippy] 
+ (defn nippy 
+   "A shape that direct maps data/bytes"
+   [] 
+   (->Shape
+    10 
+    (updater nippy/freeze)
+    (updater nippy/thaw))))
+
+(comment 
+  (:stage (nippy))
+  )
+
+(util/optional-require
+ [cognitect.transit :as transit]
+ (defn transit
+   "A shape that direct maps data/bytes.
+    - `format`: transit supporting format, one of `:msgpack`, `:json`, `:json-verbose`."
+   [format]
+   (->Shape 
+    10
+    (fn [m]
+      (with-open [^java.io.ByteArrayOutputStream out (java.io.ByteArrayOutputStream.)]
+        (let [wtr (transit/writer out format)]
+          (transit/write wtr m)
+          (.toByteArray out))))
+    (fn [bs]
+      (with-open [^java.io.ByteArrayInputStream in (java.io.ByteArrayInputStream. bs)]
+        (let [rdr (transit/reader in format)]
+          (transit/read rdr)))))))
+
+(comment 
+  ((:ser (transit :json-verbose)) {:foo "bar"})
+  ((:des (transit :json-verbose)) *1)
   )

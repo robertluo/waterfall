@@ -20,7 +20,11 @@
           ":topic is a high order shape"))
 
 (defexpect round-trip
-  (let [ks [(s/value-only) (s/edn) (s/byte-array)]
-        data {:foo 'bar :a 3 :b "4"}]
-    (expect data (->> data ((s/serialize ks)) ((s/deserialize ks)))
-            "real world example for edn plain value")))
+  (let [data {:foo 'bar :a 3 :b "4"}]
+    (doseq [ks [[(s/value-only) (s/edn) (s/byte-array)]
+                [(s/nippy)(s/value-only)]
+                [(s/transit :json)(s/value-only)]
+                [(s/transit :json-verbose)(s/value-only)]
+                [(s/transit :msgpack)(s/value-only)]]]
+      (expect data (->> data ((s/serialize ks)) ((s/deserialize ks)))
+              "real world example for edn plain value"))))
