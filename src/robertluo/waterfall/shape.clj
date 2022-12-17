@@ -93,27 +93,28 @@
   ((serialize [(edn) (value-only) (topic "test")]) {:foo "hello"})
   )
 
-(util/optional-require
- [taoensso.nippy :as nippy] 
- (defn nippy 
-   "A shape that direct maps data/bytes"
-   [] 
+(defn nippy 
+  "A shape that direct maps data/bytes"
+  [] 
+  (util/optional-require
+   [taoensso.nippy :as nippy]
    (->Shape
     10 
     (updater nippy/freeze)
-    (updater nippy/thaw))))
+    (updater nippy/thaw))
+   (throw (ClassNotFoundException. "Need com.toensso/nippy library in the classpath"))))
 
 (comment 
   (:stage (nippy))
   )
 
-(util/optional-require
- [cognitect.transit :as transit]
- (defn transit
-   "A shape that direct maps data/bytes.
+(defn transit
+  "A shape that direct maps data/bytes.
     - `format`: transit supporting format, one of `:msgpack`, `:json`, `:json-verbose`."
-   [format]
-   (->Shape 
+  [format]
+  (util/optional-require
+   [cognitect.transit :as transit]
+   (->Shape
     10
     (fn [m]
       (with-open [^java.io.ByteArrayOutputStream out (java.io.ByteArrayOutputStream.)]
@@ -123,9 +124,5 @@
     (fn [bs]
       (with-open [^java.io.ByteArrayInputStream in (java.io.ByteArrayInputStream. bs)]
         (let [rdr (transit/reader in format)]
-          (transit/read rdr)))))))
-
-(comment 
-  ((:ser (transit :json-verbose)) {:foo "bar"})
-  ((:des (transit :json-verbose)) *1)
-  )
+          (transit/read rdr)))))
+   (throw (ClassNotFoundException. "Need com.cognitect/transit-clj library in the classpath"))))

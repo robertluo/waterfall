@@ -1,8 +1,7 @@
 (ns robertluo.waterfall-test
   (:require [clojure.test :refer [use-fixtures]]
-            [expectations.clojure.test :refer [defexpect expect more]]
-            [robertluo.waterfall :as sut]
-            [robertluo.waterfall.shape :as shape]
+            [expectations.clojure.test :refer [defexpect expect]]
+            [robertluo.waterfall :as sut] 
             [manifold.stream :as ms])
   (:import (io.github.embeddedkafka EmbeddedKafka EmbeddedKafkaConfig)))
 
@@ -18,8 +17,9 @@
 (def nodes (str "localhost:" (EmbeddedKafkaConfig/defaultKafkaPort)))
 
 (defexpect round-trip
+  #_{:clj-kondo/ignore [:unresolved-var]}
   (let [collector (atom [])
-        shapes [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")]]
+        shapes [(sut/value-only) (sut/edn) (sut/byte-array) (sut/topic "test")]]
     (with-open [test-consumer (-> (sut/consumer nodes "test.group" ["test"])
                                   (sut/shaped-source shapes))
                 test-producer (-> (sut/producer nodes)
