@@ -1,4 +1,4 @@
-(ns robertluo.waterfall.core
+(ns ^:no-doc robertluo.waterfall.core
   "Core data structure"
   (:require [manifold.deferred :as d]
             [manifold.stream :as ms] 
@@ -59,18 +59,20 @@
                 [:subscibe topics] (.subscribe consumer topics)
                 [:seek :beginning] (.seekToBeginning consumer (.assignment consumer))
                 [:seek :end] (.seekToEnd consumer (.assignment consumer))
-                [:resume duration] (do (when (.paused consumer)
-                                         (.resume consumer (.assignment consumer)))
-                                       (.commitSync consumer)
-                                       (cmd-self [:poll duration]))
+                [:resume assigns duration]
+                (do (when (.paused consumer)
+                      (.resume consumer assigns))
+                    (.commitSync consumer)
+                    (cmd-self [:poll duration]))
                 [:poll duration]
-                (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))]
+                (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))
+                      assigns (.assignment consumer)]
                   (when-not (.paused consumer)
-                    (.pause consumer (.assignment consumer)))
+                    (.pause consumer assigns))
                   (d/chain (ms/put-all! out-sink (f-poll))
                            (fn [rslt]
                              (when rslt
-                               (cmd-self [:resume duration])))))
+                               (cmd-self [:resume assigns duration])))))
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
           (recur))))
     cmd-self))

@@ -1,4 +1,4 @@
-(ns robertluo.waterfall.shape
+(ns ^:no-doc robertluo.waterfall.shape
   "Transformation functions of shapes of event data."
   (:refer-clojure :exclude [byte-array])
   (:require
@@ -20,6 +20,11 @@
 ;; - :ser, a function for seriliaztion a value.
 ;; - :des, a function for deserilization a value.
 (defrecord Shape [stage ser des])
+
+(defn shape?
+  "predict if `x` is a shape"
+  [x]
+  (instance? Shape x))
 
 (defn value-only 
   "A shope only concerns the value of Kafka events."

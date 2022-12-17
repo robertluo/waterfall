@@ -8,15 +8,28 @@
     [util :as util]]
    [manifold.stream :as ms]))
 
+(def schema
+  "Schema for waterfall"
+  {:registry
+   {::nodes           [:re #"(.*?:\d{2,5};?)+"]
+    ::producer-config [:map]
+    ::consumer-config [:map
+                       [:position {:optional true} [:enum :beginning :end]]
+                       [:duration {:optional true}[:fn #(instance? java.time.Duration %)]]]
+    ::stream [:fn ms/stream?]
+    ::source [:fn ms/source?]
+    ::sink [:fn ms/sink?]
+    ::shape [:fn shape/shape?]}})
+
 (defn producer
   "Returns a manifold stream of kafka producer. Can accept map value put onto it,
    and output the putting result. If your do not care about the output, wrap it with `ignore`.
     - `nodes`: bootstrap servers urls, e.g. `localhost:9092`
     - `conf`: optional config `conf`."
   {:malli/schema 
-   [:function
-    [:=> [:cat :string] [:fn ms/stream?]]
-    [:=> [:cat :string :map] [:fn ms/stream?]]]}
+   [:function schema
+    [:=> [:cat ::nodes] ::stream]
+    [:=> [:cat ::nodes ::producer-config] ::stream]]}
   ([nodes]
    (producer nodes {}))
   ([nodes {:as conf}]
@@ -29,9 +42,9 @@
     - `topics`: a sequence of topics to listen on. e.g. `[\"test\"]
     - `conf`: an optional config map."
   {:malli/schema
-   [:function
-    [:=> [:cat :string :string [:vector :string]] [:fn ms/source?]]
-    [:=> [:cat :string :string [:vector :string] :map] [:fn ms/source?]]]}
+   [:function schema
+    [:=> [:cat ::nodes :string [:vector :string]] ::source]
+    [:=> [:cat ::nodes :string [:vector :string] ::consumer-config] ::source]]}
   ([nodes group-id topics]
    (consumer nodes group-id topics {}))
   ([nodes group-id topics {:as conf}]
@@ -40,7 +53,7 @@
 (defn ignore
   "ignore a stream `strm`'s output, return `strm` itself."
   {:malli/schema 
-   [:=> [:cat [:fn ms/stream?]] [:fn ms/stream?]]}
+   [:=> schema[:cat ::stream] ::stream]}
   [strm]
   (ms/consume (constantly nil) strm)
   strm)
@@ -48,7 +61,7 @@
 (defn shaped-source
   "returns a shaped source stream on `src`, will close source if this is closed."
   {:malli/schema 
-   [:=> [:cat [:fn ms/stream?] [:vector fn?]] [:fn ms/source?]]}
+   [:=> schema [:cat [:fn ms/stream?] [:vector ::shape]] [:fn ms/source?]]}
   [src shapes]
   (let [strm (-> (shape/deserialize shapes)
                  (map)
@@ -59,7 +72,7 @@
 (defn shaped-sink
   "returns a shaped sink stream on `sink`"
   {:malli/schema
-   [:=> [:cat [:fn ms/stream?] [:vector fn?]] [:fn ms/sink?]]}
+   [:=> schema [:cat ::stream [:vector ::shape]] ::sink]}
   [sink shapes]
   (let [strm (ms/stream)]
     (-> (shape/serialize shapes)
@@ -74,6 +87,8 @@
                   shape/nippy shape/transit])
 
 (comment
+  (require '[malli.dev]) 
+  (malli.dev/start!)
   (def nodes "localhost:9092")
   (def test-consumer (-> (consumer nodes "test.group" ["test"])
                          (shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)])))

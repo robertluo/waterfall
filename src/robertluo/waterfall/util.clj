@@ -20,6 +20,8 @@
        (zipmap ~keys ~values))))
 
 (defmacro optional-require
+  "optionally try requre `require-clause`, if success, run `if-body`,
+   else `else-body`"
   [require-clause if-body else-body]
   (if
    (try
@@ -32,7 +34,7 @@
 
 (defmacro import-fns
   "import functions from `var-syms`.
-   Refered from potemkin library.
+   Referred from potemkin library.
    See https://github.com/clj-commons/potemkin/blob/master/src/potemkin/namespaces.clj"
   [var-syms]
   `(do
