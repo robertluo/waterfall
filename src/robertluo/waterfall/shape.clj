@@ -1,4 +1,4 @@
-(ns ^:no-doc robertluo.waterfall.shape
+(ns robertluo.waterfall.shape
   "Transformation functions of shapes of event data."
   (:require
    [clojure.edn :as edn]

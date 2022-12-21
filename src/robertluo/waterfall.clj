@@ -2,8 +2,7 @@
   "API namespace for the library" 
   (:require 
    [robertluo.waterfall 
-    [core :as core]
-    [shape :as shape]
+    [core :as core] 
     [util :as util]]
    [manifold.stream :as ms]))
 
@@ -14,11 +13,10 @@
     ::producer-config [:map]
     ::consumer-config [:map
                        [:position {:optional true} [:enum :beginning :end]]
-                       [:duration {:optional true}[:fn #(instance? java.time.Duration %)]]]
+                       [:duration {:optional true} [:fn #(instance? java.time.Duration %)]]]
     ::stream [:fn ms/stream?]
     ::source [:fn ms/source?]
-    ::sink [:fn ms/sink?]
-    ::shape [:fn shape/shape?]}})
+    ::sink [:fn ms/sink?]}})
 
 (defn producer
   "Returns a manifold stream of kafka producer. Can accept map value put onto it,
@@ -57,44 +55,21 @@
   (ms/consume (constantly nil) strm)
   strm)
 
-(defn shaped-source
+(defn xform-source
   "returns a shaped source stream on `src`, will close source if this is closed."
-  {:malli/schema 
-   [:=> schema [:cat [:fn ms/stream?] [:vector ::shape]] [:fn ms/source?]]}
-  [src shapes]
-  (let [strm (-> (shape/deserializer shapes)
-                 (map)
-                 (ms/transform src))]
+  [src xform]
+  (let [strm (ms/transform xform src)]
     (ms/on-drained strm #(ms/close! src))
     (ms/source-only strm)))
 
-(defn shaped-sink
-  "returns a shaped sink stream on `sink`"
-  {:malli/schema
-   [:=> schema [:cat ::stream [:vector ::shape]] ::sink]}
-  [sink shapes]
+(defn xform-sink
+  "returns a shaped sink stream on `sink`" 
+  [sink xform]
   (let [strm (ms/stream)]
-    (-> (shape/serializer shapes)
-        (map)
-        (ms/transform strm)
-        (ms/connect sink))
+    (->  (ms/transform xform strm) (ms/connect sink))
     (ms/sink-only strm)))
-
-;import shape functions to save users' time not requiring shape.
-(util/import-fns [shape/value-only shape/key-value shape/edn
-                  shape/topic shape/nippy shape/transit
-                  shape/serializer shape/deserializer])
 
 (comment
   (require '[malli.dev]) 
   (malli.dev/start!)
-  (def nodes "localhost:9092")
-  (def test-consumer (-> (consumer nodes "test.group" ["test"])
-                         (shaped-source [(shape/value-only) (shape/edn) ])))
-  (ms/consume prn test-consumer)
-  (def test-producer (-> (ignore (producer nodes))
-                         (shaped-sink [(shape/value-only) (shape/edn)])))
-  (ms/put! test-producer "Hello, world!")
-  (ms/close! test-producer)
-  (ms/close! test-consumer)
   )

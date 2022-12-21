@@ -1,8 +1,9 @@
 (ns robertluo.waterfall-test
   (:require [clojure.test :refer [use-fixtures]]
             [expectations.clojure.test :refer [defexpect expect more]]
-            [robertluo.waterfall :as sut] 
-            [manifold.stream :as ms])
+            [manifold.stream :as ms]
+            [robertluo.waterfall :as sut]
+            [robertluo.waterfall.shape :as shape])
   (:import (io.github.embeddedkafka EmbeddedKafka EmbeddedKafkaConfig)))
 
 (defn kafka-fixture
@@ -19,15 +20,15 @@
 (defexpect round-trip
   #_{:clj-kondo/ignore [:unresolved-var]}
   (let [collector (atom [])
-        shapes [(sut/topic "test")  (sut/edn) (sut/value-only)]]
+        shapes [(shape/topic "test") (shape/edn) (shape/value-only)]]
     (with-open [test-consumer (-> (sut/consumer nodes "test.group" ["test"])
-                                  (sut/shaped-source shapes))
+                                  (sut/xform-source (map (shape/deserializer shapes))))
                 test-producer (-> (sut/producer nodes)
                                   (sut/ignore)
-                                  (sut/shaped-sink shapes))]
+                                  (sut/xform-sink (map (shape/serializer shapes))))]
       (ms/consume #(do (swap! collector conj %) nil) test-consumer)
       (expect true @(ms/put-all! test-producer (range 1000))
               "Run without exception!") 
       ;;This can not pass on github for unknown reason :-(
-      #_(expect (more not-empty #(every? number? %)) @collector
+      (expect (more not-empty #(every? number? %)) @collector
               "Not sure what received, but at least got some numbers."))))
