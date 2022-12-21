@@ -2,8 +2,7 @@
   "API namespace for the library" 
   (:require 
    [robertluo.waterfall 
-    [core :as core] 
-    [util :as util]]
+    [core :as core]]
    [manifold.stream :as ms]))
 
 (def schema

@@ -32,6 +32,7 @@
     if-body
     else-body))
 
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defmacro import-fns
   "import functions from `var-syms`.
    Referred from potemkin library.

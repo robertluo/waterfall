@@ -80,6 +80,7 @@
   (def shapes [(edn) (key-value identity)])
   ((serializer shapes) [:foo "bar"])
   ((deserializer shapes) *1)
+  (shape? (edn))
   )
 
 (defn nippy 
