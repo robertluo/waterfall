@@ -4,7 +4,7 @@
    [expectations.clojure.test :refer [defexpect expect]]))
 
 (defexpect topic-shape
-  (expect {:foo "bar" :topic "test"} ((s/serializer [(s/topic "test")]) {:foo "bar"})
+  (expect {:foo "bar" :topic "test"} ((s/serializer [(s/topic (constantly "test"))]) {:foo "bar"})
           ":topic is a high order shape"))
 
 (defexpect round-trip

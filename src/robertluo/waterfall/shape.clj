@@ -54,10 +54,12 @@
    (updater (fn [^"[B" bs] (-> (String. bs "UTF-8") (edn/read-string))))))
 
 (defn topic
-  "A shape attach topic to record on serilization, do nothing when deserilizing."
-  [topic-name]
+  "A shape attach topic to record on serilization, do nothing when deserilizing.
+   - `f-topic`: function take data (records with `:key` and `:value`), returns
+      a string of topic name."
+  [f-topic]
   (->Shape
-   (fn [m] (assoc m :topic topic-name))
+   (fn [m] (assoc m :topic (f-topic m)))
    identity))
 
 (defn serializer
