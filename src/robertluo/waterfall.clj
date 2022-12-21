@@ -1,6 +1,5 @@
 (ns robertluo.waterfall
-  "API namespace for the library"
-  (:refer-clojure :exclude [byte-array])
+  "API namespace for the library" 
   (:require 
    [robertluo.waterfall 
     [core :as core]
@@ -63,7 +62,7 @@
   {:malli/schema 
    [:=> schema [:cat [:fn ms/stream?] [:vector ::shape]] [:fn ms/source?]]}
   [src shapes]
-  (let [strm (-> (shape/deserialize shapes)
+  (let [strm (-> (shape/deserializer shapes)
                  (map)
                  (ms/transform src))]
     (ms/on-drained strm #(ms/close! src))
@@ -75,7 +74,7 @@
    [:=> schema [:cat ::stream [:vector ::shape]] ::sink]}
   [sink shapes]
   (let [strm (ms/stream)]
-    (-> (shape/serialize shapes)
+    (-> (shape/serializer shapes)
         (map)
         (ms/transform strm)
         (ms/connect sink))
@@ -83,18 +82,18 @@
 
 ;import shape functions to save users' time not requiring shape.
 (util/import-fns [shape/value-only shape/key-value shape/edn
-                  shape/topic shape/byte-array
-                  shape/nippy shape/transit])
+                  shape/topic shape/nippy shape/transit
+                  shape/serializer shape/deserializer])
 
 (comment
   (require '[malli.dev]) 
   (malli.dev/start!)
   (def nodes "localhost:9092")
   (def test-consumer (-> (consumer nodes "test.group" ["test"])
-                         (shaped-source [(shape/value-only) (shape/edn) (shape/byte-array)])))
+                         (shaped-source [(shape/value-only) (shape/edn) ])))
   (ms/consume prn test-consumer)
   (def test-producer (-> (ignore (producer nodes))
-                         (shaped-sink [(shape/value-only) (shape/edn) (shape/byte-array) (shape/topic "test")])))
+                         (shaped-sink [(shape/value-only) (shape/edn)])))
   (ms/put! test-producer "Hello, world!")
   (ms/close! test-producer)
   (ms/close! test-consumer)
