@@ -1,4 +1,4 @@
-(ns robertluo.waterfall.core
+(ns ^:no-doc robertluo.waterfall.core
   "Core data structure"
   (:require [manifold.deferred :as d]
             [manifold.stream :as ms] 
@@ -55,22 +55,24 @@
             (let [cmd @(ms/take! mailbox)]
               (tap> cmd)
               (match cmd
-                [:close] (do (.close consumer) ::stop)
-                [:subscibe topics] (.subscribe consumer topics)
-                [:seek :beginning] (.seekToBeginning consumer (.assignment consumer))
-                [:seek :end] (.seekToEnd consumer (.assignment consumer))
-                [:resume duration] (do (when (.paused consumer)
-                                         (.resume consumer (.assignment consumer)))
-                                       (.commitSync consumer)
-                                       (cmd-self [:poll duration]))
-                [:poll duration]
-                (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))]
+                [::close] (do (.close consumer) ::stop)
+                [::subscribe topics] (.subscribe consumer topics)
+                [::seek :beginning] (.seekToBeginning consumer (.assignment consumer))
+                [::seek :end] (.seekToEnd consumer (.assignment consumer))
+                [::resume assigns duration]
+                (do (when (.paused consumer)
+                      (.resume consumer assigns))
+                    (.commitSync consumer)
+                    (cmd-self [::poll duration]))
+                [::poll duration]
+                (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))
+                      assigns (.assignment consumer)]
                   (when-not (.paused consumer)
-                    (.pause consumer (.assignment consumer)))
+                    (.pause consumer assigns))
                   (d/chain (ms/put-all! out-sink (f-poll))
                            (fn [rslt]
                              (when rslt
-                               (cmd-self [:resume duration])))))
+                               (cmd-self [::resume assigns duration])))))
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
           (recur))))
     cmd-self))
@@ -87,10 +89,10 @@
                  (KafkaConsumer. (ByteArrayDeserializer.) (ByteArrayDeserializer.))) 
         out-sink (ms/stream)
         actor (consumer-actor conr out-sink)]
-    (actor [:subscibe topics])
-    (when position (actor [:seek position]))
-    (ms/on-closed out-sink (fn [] @(actor [:close]))) 
-    (actor [:poll poll-duration])
+    (actor [::subscribe topics])
+    (when position (actor [::seek position]))
+    (ms/on-closed out-sink (fn [] @(actor [::close]))) 
+    (actor [::poll poll-duration])
     (ms/source-only out-sink)))
 
 (comment
@@ -99,7 +101,7 @@
   (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
   (ms/consume #(println "producer: " %) prod)
   (ms/close! prod)
-  (def conr (consumer nodes "test.group" ["test"] {:position :beginning})) 
+  (def conr (consumer nodes "test.group" ["test"] {::position :beginning})) 
   (ms/consume #(println "consumer: " %) conr)
   (ms/close! conr) 
   )

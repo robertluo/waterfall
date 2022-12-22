@@ -20,17 +20,37 @@
        (zipmap ~keys ~values))))
 
 (defmacro optional-require
-  [require-clause & body]
-  (when 
+  "optionally try requre `require-clause`, if success, run `if-body`,
+   else `else-body`"
+  [require-clause if-body else-body]
+  (if
    (try
      (require require-clause)
      true
      (catch Exception _ 
        false))
-    `(do ~@body)))
+    if-body
+    else-body))
+
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defmacro import-fns
+  "import functions from `var-syms`.
+   Referred from potemkin library.
+   See https://github.com/clj-commons/potemkin/blob/master/src/potemkin/namespaces.clj"
+  [var-syms]
+  `(do
+     ~@(mapcat (fn [sym]
+                 (let [vr (resolve sym)
+                       m (meta vr)
+                       n (:name m)]
+                   `[(def ~n ~(deref vr))
+                     (alter-meta! (var ~n) merge (dissoc (meta ~vr) :name))]))
+            var-syms)))
 
 (comment
+  (ns-resolve *ns* 'scala-vo->map)
   (->config-map {:bootstrap-servers "localhost:9092" :group-id "test"})
   (macroexpand-1 '(scala-vo->map my Duration [k v])) 
-  (macroexpand-1 '(optional-require clojure.core (defn a [] "ok")))
+  (macroexpand-1 '(optional-require clojure.core (a defn [] "ok")))
+  (macroexpand-1 '(import-fns [clojure.core/+]))
   )
