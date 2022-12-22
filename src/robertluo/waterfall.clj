@@ -65,7 +65,7 @@
   "returns a shaped sink stream on `sink`" 
   [sink xform]
   (let [strm (ms/stream)]
-    (->  (ms/transform xform strm) (ms/connect sink))
+    (-> (ms/transform xform strm) (ms/connect sink))
     (ms/sink-only strm)))
 
 (comment

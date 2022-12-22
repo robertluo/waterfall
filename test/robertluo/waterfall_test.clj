@@ -1,4 +1,5 @@
 (ns robertluo.waterfall-test
+  #_{:clj-kondo/ignore [:unused-referred-var]}
   (:require [clojure.test :refer [use-fixtures]]
             [expectations.clojure.test :refer [defexpect expect more]]
             [manifold.stream :as ms]
