@@ -16,4 +16,5 @@
                    :main-opts  ["-m" "kaocha.runner"]}
            :build {:extra-deps {io.github.seancorfield/build-clj {:git/tag "v0.8.5"
                                                                   :git/sha "de693d0"}}
-                   :ns-default build}}}
+                   :ns-default build}
+           :notebook {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.12.707"}}}}}

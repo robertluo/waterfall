@@ -81,7 +81,7 @@
   [nodes group-id topics 
    {:keys [poll-duration position] :as conf 
     :or {poll-duration (Duration/ofSeconds 10)}}]
-  (let [conr (-> conf
+  (let [conr (-> (dissoc conf :poll-duration :position) ;avoid kafka complaints
                  (merge {:bootstrap-servers nodes
                          :group-id group-id
                          :enable-auto-commit false})

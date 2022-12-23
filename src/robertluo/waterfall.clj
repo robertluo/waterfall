@@ -12,7 +12,7 @@
     ::producer-config [:map]
     ::consumer-config [:map
                        [:position {:optional true} [:enum :beginning :end]]
-                       [:duration {:optional true} [:fn #(instance? java.time.Duration %)]]]
+                       [:poll-duration {:optional true} [:fn #(instance? java.time.Duration %)]]]
     ::stream [:fn ms/stream?]
     ::source [:fn ms/source?]
     ::sink [:fn ms/sink?]}})
@@ -66,7 +66,7 @@
   [sink xform]
   (let [strm (ms/stream)]
     (-> (ms/transform xform strm) (ms/connect sink))
-    (ms/sink-only strm)))
+    strm))
 
 (comment
   (require '[malli.dev]) 

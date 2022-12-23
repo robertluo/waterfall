@@ -4,3 +4,4 @@
 .calva/output-window/
 .nrepl*
 .clj-kondo/*/
+.clerk/
