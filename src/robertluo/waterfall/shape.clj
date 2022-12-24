@@ -106,6 +106,9 @@
   (shape? (edn))
   )
 
+;---------------------------------
+; Optional shapes
+
 (defn nippy 
   "A shape that direct maps data/bytes"
   {:malli/schema

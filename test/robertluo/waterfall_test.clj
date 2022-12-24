@@ -3,9 +3,12 @@
   (:require [clojure.test :refer [use-fixtures]]
             [expectations.clojure.test :refer [defexpect expect more]]
             [manifold.stream :as ms]
+            [malli.dev]
             [robertluo.waterfall :as sut]
             [robertluo.waterfall.shape :as shape])
   (:import (io.github.embeddedkafka EmbeddedKafka EmbeddedKafkaConfig)))
+
+(malli.dev/start!)
 
 (defn kafka-fixture
   [work]

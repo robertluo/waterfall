@@ -18,7 +18,15 @@ Hence, Waterfall is an attempt at a minimalist library with additional optional 
 
  - Only two core functions: `producer` and `consumer`.
  - Relying on the excellent [Manifold library](https://github.com/clj-commons/manifold), `producer`, and `consumer` is just the implementation of the Manifold stream.
+ - Minimum necessary dependencies. 
  - Clojure version SERDES, in `robertluo.waterfall.shape` namespace. Underlying, give Kafka API byte array SERDES. 
+ - Optional features require optional dependencies. For example, if you want to use nippy as SERDES, you put it in your classpath.
+
+## Development experience
+
+Because all functions have their schemas incorporated, you can get the best development experience if dependency `metosin/malli` is in your classpath.
+
+Put `(malli.dev/start!)` in your `user.clj` will enable clj-kondo to use the schemas when editing.
 
 ## API namespaces
 
@@ -31,9 +39,10 @@ Hence, Waterfall is an attempt at a minimalist library with additional optional 
 
   | Filename | Description |
   | -- | -- |
-  | deps.edn | Clojure tools.deps configuration |
+  | deps.edn  | Clojure tools.deps configuration |
   | tests.edn | kaocha test runner configuration |
   | build.clj | Clojure tools.build building script |
+  | notebook  | [Clerk](https://github.com/nextjournal/clerk) notebooks to demostrate usage, use `clojure -M:dev:notebook` to use them |
 
 ## Copyright
 
