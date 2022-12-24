@@ -1,7 +1,6 @@
 ;; # Hello, Waterfall! A Word counting example.
 (ns introduction
-  (:require [robertluo.waterfall :as wf]
-            [clojure.string :as str])
+  (:require [robertluo.waterfall :as wf])
   (:import (java.time Duration)))
 
 ;; Waterfall is a library for Clojure programmers to use Apache Kafka. In order to run
