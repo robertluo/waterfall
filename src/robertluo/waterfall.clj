@@ -22,7 +22,7 @@
    and output the putting result. If your do not care about the output, wrap it with `ignore`.
     - `nodes`: bootstrap servers urls, e.g. `localhost:9092`
     - `conf`: optional config `conf`. 
-   [complete conf options](https://kafka.apache.org/33/javadoc/org/apache/kafka/clients/producer/ProducerConfig.html)"
+   [other conf options](https://kafka.apache.org/33/javadoc/org/apache/kafka/clients/producer/ProducerConfig.html)"
   {:malli/schema 
    [:function schema
     [:=> [:cat ::nodes] ::stream]
@@ -38,7 +38,7 @@
     - `group-id`: consumer group id.
     - `topics`: a sequence of topics to listen on. e.g. `[\"test\"]
     - `conf`: an optional config map.
-   [complete conf options](https://kafka.apache.org/33/javadoc/org/apache/kafka/clients/consumer/ConsumerConfig.html)"
+   [other conf options](https://kafka.apache.org/33/javadoc/org/apache/kafka/clients/consumer/ConsumerConfig.html)"
   {:malli/schema
    [:function schema
     [:=> [:cat ::nodes :string [:vector :string]] ::source]

@@ -34,5 +34,5 @@
       (expect true @(ms/put-all! test-producer (range 1000))
               "Run without exception!") 
       ;;This can not pass on github for unknown reason :-(
-      #_(expect (more not-empty #(every? number? %)) @collector
+      (expect (more not-empty #(every? number? %)) @collector
               "Not sure what received, but at least got some numbers."))))

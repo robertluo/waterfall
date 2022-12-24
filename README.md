@@ -26,7 +26,7 @@ Hence, Waterfall is an attempt at a minimalist library with additional optional 
 
 Because all functions have their schemas incorporated, you can get the best development experience if dependency `metosin/malli` is in your classpath.
 
-Put `(malli.dev/start!)` in your `user.clj` will enable clj-kondo to use the schemas when editing.
+Put `(malli.dev/start!)` in your `user.clj` will [enable clj-kondo](https://github.com/metosin/malli/blob/master/docs/function-schemas.md#tldr) to use the schemas when editing.
 
 ## API namespaces
 

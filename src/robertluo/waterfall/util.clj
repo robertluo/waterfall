@@ -12,8 +12,8 @@
   "define a function `fn-name`, it will turns scala value class
    `clazz` to a map, with `method-names` as its keys."
   [fn-name clazz method-names]
-  (let [keys (mapv #(-> % str keyword) method-names)
-        obj (gensym "obj")
+  (let [keys   (mapv #(-> % str keyword) method-names)
+        obj    (gensym "obj")
         values (mapv #(list '. obj (->> % name symbol)) method-names)]
     `(defn ~fn-name
        [^{:tag clazz} ~obj]
