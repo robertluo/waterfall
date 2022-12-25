@@ -1,5 +1,5 @@
 (ns robertluo.waterfall
-  "API namespace for the library" 
+  "API namespace for the library"
   (:require 
    [robertluo.waterfall 
     [core :as core]]

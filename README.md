@@ -44,6 +44,6 @@ Put `(malli.dev/start!)` in your `user.clj` will [enable clj-kondo](https://gith
   | build.clj | Clojure tools.build building script |
   | notebook  | [Clerk](https://github.com/nextjournal/clerk) notebooks to demostrate usage, use `clojure -M:dev:notebook` to use them |
 
-## Copyright
+## Unlicense
 
-Luo Tian @2022
+2022, Robertluo
