@@ -32,7 +32,7 @@
                 test-producer (-> (sut/producer nodes)
                                   (sut/ignore)
                                   (sut/xform-sink (map (shape/serializer shapes))))]
-      (ms/consume #(swap! collector conj %) test-consumer)
+      (ms/consume-async #(swap! collector conj %) test-consumer)
       (expect true @(ms/put-all! test-producer (range 1000))
               "Run without exception!") 
       ;;This can not pass on github for unknown reason :-(

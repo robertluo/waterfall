@@ -3,12 +3,15 @@ name: CI
 on:
   push:
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  release:
+    types: [published]
 
 jobs:
   build:
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     runs-on: ubuntu-latest
+    environment: deploy
 
     steps:
     - uses: actions/checkout@v3
@@ -22,3 +25,7 @@ jobs:
         key: default-build
     - run: clojure -T:build ci
     - uses: codecov/codecov-action@v3
+    - name: deploy
+      if: github.event.release
+      run: clojure -T:build deploy
+    
