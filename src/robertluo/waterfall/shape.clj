@@ -11,11 +11,20 @@
 
 (defn shape?
   "predict if `x` is a shape"
+  {:malli/schema
+   [:=> [:cat :any] :boolean]}
   [x]
   (instance? Shape x))
 
+(def schema
+  "schema for shapes"
+  {:registry
+   {::shape [:fn shape?]}})
+
 (defn value-only
   "A shape concerns just value of the Kafka event."
+  {:malli/schema
+   [:=> schema :cat ::shape]}
   []
   (->Shape 
    (fn [v] {:value v})
@@ -27,6 +36,12 @@
    be the key of the event.
    When deserializing a value, optional function `g` will apply to the
    key and value pari of the event. Default is `identity`."
+  {:malli/schema
+   [:function schema
+    [:=> [:cat [:=> [:cat :any] [:tuple :any :any]]] ::shape]
+    [:=> [:cat 
+          [:=> [:cat :any] [:tuple :any :any]]
+          [:=> [:cat :map] :any]] ::shape]]}
   ([f]
    (key-value f identity))
   ([f g]
@@ -48,6 +63,8 @@
 
 (defn edn
   "A shape converts string/edn."
+  {:malli/schema
+   [:=> schema [:cat] ::shape]}
   []
   (->Shape
    (updater (fn [data] (-> ^String (pr-str data) (.getBytes "UTF-8"))))
@@ -57,6 +74,8 @@
   "A shape attach topic to record on serilization, do nothing when deserilizing.
    - `f-topic`: function take data (records with `:key` and `:value`), returns
       a string of topic name."
+  {:malli/schema
+   [:=> schema [:cat [:=> [:cat :map] :any]] ::shape]}
   [f-topic]
   (->Shape
    (fn [m] (assoc m :topic (f-topic m)))
@@ -66,6 +85,8 @@
   "returns a serializer function which composes `shapes`, make sure to put the
    last step (like `value-only`) to the last.
    e.g. [(edn) (value-only)]"
+  {:malli/schema
+   [:=> schema [:cat [:sequential ::shape]] [:=> [:cat :any] bytes?]]}
   [shapes]
   (->> (map :ser shapes) (apply comp)))
 
@@ -73,6 +94,8 @@
   "returns a deserializer function which composes `shapes`, will be called in the
    reverse order of `serializer`, so the `shapes` argument can be shared.
    e.g. [(edn) (value-only)]"
+  {:malli/schema
+   [:=> schema [:cat [:sequential ::shape]] [:=> [:cat bytes?] :any]]}
   [shapes]
   (->> (map :des shapes) (reverse) (apply comp)))
 
@@ -83,8 +106,13 @@
   (shape? (edn))
   )
 
+;---------------------------------
+; Optional shapes
+
 (defn nippy 
   "A shape that direct maps data/bytes"
+  {:malli/schema
+   [:=> schema [:cat] ::shape]}
   [] 
   (util/optional-require
    [taoensso.nippy :as nippy]
@@ -96,6 +124,8 @@
 (defn transit
   "A shape that direct maps data/bytes.
     - `format`: transit supporting format, one of `:msgpack`, `:json`, `:json-verbose`."
+  {:malli/schema
+   [:=> schema [:cat [:enum :msgpack :json :json-verbose]] ::shape]}
   [format]
   (util/optional-require
    [cognitect.transit :as transit]

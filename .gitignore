@@ -1,6 +1,8 @@
+target/
 .lsp/
 .cpcache/
 .portal
 .calva/output-window/
 .nrepl*
 .clj-kondo/*/
+.clerk/

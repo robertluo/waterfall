@@ -1,7 +1,10 @@
 (ns robertluo.waterfall.shape-test
   (:require
    [robertluo.waterfall.shape :as s]
+   [malli.dev]
    [expectations.clojure.test :refer [defexpect expect]]))
+
+(malli.dev/start!)
 
 (defexpect topic-shape
   (expect {:foo "bar" :topic "test"} ((s/serializer [(s/topic (constantly "test"))]) {:foo "bar"})

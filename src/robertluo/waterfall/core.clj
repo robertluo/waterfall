@@ -44,7 +44,8 @@
   timestamp timestampType topic key value headers])
 
 (defn- consumer-actor
-  "Kafka consumer is not thread safe, using actor model will limit its access in a single thread."
+  "Kafka consumer is not thread safe, using actor model will limit its access in a single thread.
+   See https://www.confluent.io/blog/kafka-consumer-multi-threaded-messaging/"
   [^Consumer consumer out-sink]
   (let [mailbox (ms/stream)
         cmd-self (fn [cmd] (ms/put! mailbox cmd))]
@@ -59,29 +60,36 @@
                 [::subscribe topics] (.subscribe consumer topics)
                 [::seek :beginning] (.seekToBeginning consumer (.assignment consumer))
                 [::seek :end] (.seekToEnd consumer (.assignment consumer))
+                
                 [::resume assigns duration]
-                (do (when (.paused consumer)
-                      (.resume consumer assigns))
-                    (.commitSync consumer)
-                    (cmd-self [::poll duration]))
+                (do
+                  (when (.paused consumer)
+                    (.resume consumer assigns))
+                  (.commitSync consumer)
+                  (cmd-self [::poll duration]))
+                
                 [::poll duration]
-                (let [f-poll #(->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))
-                      assigns (.assignment consumer)]
-                  (when-not (.paused consumer)
-                    (.pause consumer assigns))
-                  (d/chain (ms/put-all! out-sink (f-poll))
-                           (fn [rslt]
-                             (when rslt
-                               (cmd-self [::resume assigns duration])))))
+                (let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))]
+                  (if (seq events)
+                    (let [assigns (.assignment consumer)]
+                      (when-not (.paused consumer)
+                        (.pause consumer assigns))
+                      (d/chain (ms/put-all! out-sink events)
+                               (fn [rslt]
+                                 (when rslt
+                                   (cmd-self [::resume assigns duration])))))
+                    (cmd-self [::poll duration])))
+                
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
           (recur))))
     cmd-self))
 
 (defn consumer
   [nodes group-id topics 
-   {:keys [poll-duration position] :as conf 
-    :or {poll-duration (Duration/ofSeconds 10)}}]
-  (let [conr (-> conf
+   {:keys [poll-duration position]
+    :as   conf 
+    :or   {poll-duration (Duration/ofSeconds 10)}}]
+  (let [conr (-> (dissoc conf :poll-duration :position) ;avoid kafka complaints
                  (merge {:bootstrap-servers nodes
                          :group-id group-id
                          :enable-auto-commit false})
@@ -94,14 +102,3 @@
     (ms/on-closed out-sink (fn [] @(actor [::close]))) 
     (actor [::poll poll-duration])
     (ms/source-only out-sink)))
-
-(comment
-  (def nodes "localhost:9092")
-  (def prod (producer nodes {}))
-  (ms/put! prod {:topic "test" :k (.getBytes "greeting") :v (.getBytes "Hello, world!")})
-  (ms/consume #(println "producer: " %) prod)
-  (ms/close! prod)
-  (def conr (consumer nodes "test.group" ["test"] {::position :beginning})) 
-  (ms/consume #(println "consumer: " %) conr)
-  (ms/close! conr) 
-  )

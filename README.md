@@ -2,22 +2,48 @@
 
 [![CI](https://github.com/robertluo/waterfall/actions/workflows/main.yml/badge.svg)](https://github.com/robertluo/waterfall/actions/workflows/main.yml)
 
-An attempt for Kafka in ideomatical Clojure.
+## Rational
 
-Libraries like Kinsky try to provide wrappers for Kafka java client, which is not very useful.
+Try to use Apache Kafka clients in idiomatic Clojure.
 
-Ketu is nice, however, 
+Kafka has Java/Scala clients API, and programmers have no problem calling them directly in Clojure, so we do not need to "wrap" Java API.
 
- * The implementation is not my favorite style
+However, from a Clojure programmer's perspective, direct call Kafka Java API does not feel very good:
+
+ - It is complex, with many interfaces, classes, and methods, which is not a good experience for a dynamic language.
+ - It looks more like a framework or even frameworks. Users have to have a lot of background knowledge and implementation details.
+ - Clojure programmers could use transducers to deal with data and do not need to use Kafka streams. 
+
+Hence, Waterfall is an attempt at a minimalist library with additional optional batteries.
+
+ - Only two core functions: `producer` and `consumer`.
+ - Relying on the excellent [Manifold library](https://github.com/clj-commons/manifold), `producer`, and `consumer` is just the implementation of the Manifold stream.
+ - Minimum necessary dependencies. 
+ - Clojure version SERDES, in `robertluo.waterfall.shape` namespace. Underlying, give Kafka API byte array SERDES. 
+ - Optional features require optional dependencies. For example, if you want to use nippy as SERDES, you put it in your classpath.
+
+## Development experience
+
+Because all functions have their schemas incorporated, you can get the best development experience if dependency `metosin/malli` is in your classpath.
+
+Put `(malli.dev/start!)` in your `user.clj` will [enable clj-kondo](https://github.com/metosin/malli/blob/master/docs/function-schemas.md#tldr) to use the schemas when editing.
+
+## API namespaces
+
+  | namespace | Description |
+  | -- | -- |
+  | robertluo.waterfall | main API |
+  | robertluo.waterfall.shape | optional Clojure data shape transformation |
 
 ## Files Description
 
   | Filename | Description |
   | -- | -- |
-  | deps.edn | Clojure tools.deps configuration |
+  | deps.edn  | Clojure tools.deps configuration |
   | tests.edn | kaocha test runner configuration |
   | build.clj | Clojure tools.build building script |
+  | notebook  | [Clerk](https://github.com/nextjournal/clerk) notebooks to demostrate usage, use `clojure -M:dev:notebook` to use them |
 
-## Copyright
+## Unlicense
 
-Luo Tian @2022
+2022, Robertluo
