@@ -28,4 +28,7 @@ jobs:
     - name: deploy
       if: github.event.release
       run: clojure -T:build deploy
+      env:
+        CLOJARS_USERNAME: ${{secrets.CLOJARS_USERNAME}}
+        CLOJARS_PASSWORD: ${{secrets.CLOJARS_PASSWORD}}
     
