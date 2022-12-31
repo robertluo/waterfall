@@ -5,7 +5,7 @@
 
 (defn project
   [opts]
-  (merge opts {:lib     'robertluo/waterfall
+  (merge opts {:lib     'io.github.robertluo/waterfall
                :version (format "0.1.%s" (b/git-count-revs nil))
                :scm     {:url "https://github.com/robertluo/waterfall"}}))
 
