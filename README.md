@@ -1,6 +1,8 @@
 # Waterfall
 
 [![CI](https://github.com/robertluo/waterfall/actions/workflows/main.yml/badge.svg)](https://github.com/robertluo/waterfall/actions/workflows/main.yml)
+[![Clojars Project](https://img.shields.io/clojars/v/io.github.robertluo/waterfall.svg)](https://clojars.org/io.github.robertluo/waterfall)
+[![cljdoc badge](https://cljdoc.org/badge/io.github.robertluo/waterfall)](https://cljdoc.org/d/io.github.robertluo/waterfall)
 
 ## Rational
 
