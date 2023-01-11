@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
+    tags:
+    - v**
   pull_request:
     branches: [main]
-  tags:
-    - v**
 
 jobs:
   build:
@@ -26,7 +26,7 @@ jobs:
     - run: clojure -T:build ci
     - uses: codecov/codecov-action@v3
     - name: deploy
-      if: github.event.tags
+      if: github.event.push.tags
       run: clojure -T:build deploy
       env:
         CLOJARS_USERNAME: ${{secrets.CLOJARS_USERNAME}}
