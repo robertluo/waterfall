@@ -99,6 +99,15 @@
   [shapes]
   (->> (map :des shapes) (reverse) (apply comp)))
 
+(defn shapes
+  "construct shapes in order."
+  ([top-shapes]
+   (shapes top-shapes :edn))
+  ([top-shapes bytes-shape]
+   (shapes top-shapes bytes-shape (value-only)))
+  ([top-shapes bytes-shape kv-shape]
+   (-> (concat top-shapes [bytes-shape kv-shape]) vector)))
+
 (comment
   (def shapes [(edn) (key-value identity)])
   ((serializer shapes) [:foo "bar"])
