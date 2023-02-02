@@ -11,7 +11,8 @@
                           com.github.seancorfield/expectations         {:mvn/version "2.0.160"}
                           com.taoensso/nippy                          {:mvn/version "3.3.0-alpha2"}
                           com.cognitect/transit-clj                   {:mvn/version "1.0.329"}
-                          metosin/malli                               {:mvn/version "0.9.2"}}}
+                          metosin/malli                               {:mvn/version "0.9.2"}
+                          io.github.robertluo/fun-map                 {:mvn/version "0.5.114"}}}
            :test
            {:extra-deps {lambdaisland/kaocha {:mvn/version "1.71.1119"}}
             :main-opts  ["-m" "kaocha.runner"]}

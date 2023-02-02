@@ -30,6 +30,14 @@ Because all functions have their schemas incorporated, you can get the best deve
 
 Put `(malli.dev/start!)` in your `user.clj` will [enable clj-kondo](https://github.com/metosin/malli/blob/master/docs/function-schemas.md#tldr) to use the schemas when editing.
 
+## Single API
+
+Powered by [fun-map](https://github.com/robertluo/fun-map), you can use one single API for accessing a Kafka cluster without any further knowledge:
+
+ - [`kafka-cluster`](https://cljdoc.org/d/io.github.robertluo/waterfall/CURRENT/api/robertluo.waterfall#kafka-cluster)
+
+You can see an example in [this easy example notebook](notebook/easy.clj).
+
 ## API namespaces
 
   | namespace | Description |
