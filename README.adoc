@@ -1,10 +1,10 @@
-# Waterfall
+= Waterfall
 
-[![CI](https://github.com/robertluo/waterfall/actions/workflows/main.yml/badge.svg)](https://github.com/robertluo/waterfall/actions/workflows/main.yml)
-[![Clojars Project](https://img.shields.io/clojars/v/io.github.robertluo/waterfall.svg)](https://clojars.org/io.github.robertluo/waterfall)
-[![cljdoc badge](https://cljdoc.org/badge/io.github.robertluo/waterfall)](https://cljdoc.org/d/io.github.robertluo/waterfall)
+image:https://github.com/robertluo/waterfall/actions/workflows/main.yml/badge.svg[CI,link=https://github.com/robertluo/waterfall/actions/workflows/main.yml]
+image:https://img.shields.io/clojars/v/io.github.robertluo/waterfall.svg[Clojars project,link=https://clojars.org/io.github.robertluo/waterfall]
+image:https://cljdoc.org/badge/io.github.robertluo/waterfall[cljdoc,link=https://cljdoc.org/d/io.github.robertluo/waterfall]
 
-## Rational
+== Rational
 
 Try to use Apache Kafka clients in idiomatic Clojure.
 
@@ -19,41 +19,47 @@ However, from a Clojure programmer's perspective, direct call Kafka Java API doe
 Hence, Waterfall is an attempt at a minimalist library with additional optional batteries.
 
  - Only two core functions: `producer` and `consumer`.
- - Relying on the excellent [Manifold library](https://github.com/clj-commons/manifold), `producer`, and `consumer` is just the implementation of the Manifold stream.
+ - Relying on the excellent https://github.com/clj-commons/manifold[manifold library], `producer`, and `consumer` is just the implementation of the Manifold stream.
  - Minimum necessary dependencies. 
  - Clojure version SERDES, in `robertluo.waterfall.shape` namespace. Underlying, give Kafka API byte array SERDES. 
  - Optional features require optional dependencies. For example, if you want to use nippy as SERDES, you put it in your classpath.
 
-## Development experience
+== Development experience
 
 Because all functions have their schemas incorporated, you can get the best development experience if dependency `metosin/malli` is in your classpath.
 
-Put `(malli.dev/start!)` in your `user.clj` will [enable clj-kondo](https://github.com/metosin/malli/blob/master/docs/function-schemas.md#tldr) to use the schemas when editing.
+Put `(malli.dev/start!)` in your `user.clj` will https://github.com/metosin/malli/blob/master/docs/function-schemas.md#tldr[enable clj-kondo] to use the schemas when editing.
 
 ## Single API
 
-Powered by [fun-map](https://github.com/robertluo/fun-map), you can use one single API for accessing a Kafka cluster without any further knowledge:
+Powered by https://github.com/robertluo/fun-map[fun-map], you can use one single API for accessing a Kafka cluster without any further knowledge:
 
- - [`kafka-cluster`](https://cljdoc.org/d/io.github.robertluo/waterfall/CURRENT/api/robertluo.waterfall#kafka-cluster)
+ - https://cljdoc.org/d/io.github.robertluo/waterfall/CURRENT/api/robertluo.waterfall#kafka-cluster[`kafka-cluster`]
 
-You can see an example in [this easy example notebook](notebook/easy.clj).
+You can see an example in link:notebook/easy.clj[this easy example notebook].
 
 ## API namespaces
 
-  | namespace | Description |
-  | -- | -- |
-  | robertluo.waterfall | main API |
-  | robertluo.waterfall.shape | optional Clojure data shape transformation |
+[cols="1,1"]
+|===
+| namespace | Description
+
+| robertluo.waterfall | main API
+| robertluo.waterfall.shape | optional Clojure data shape transformation
+|===
 
 ## Files Description
 
-  | Filename | Description |
-  | -- | -- |
-  | deps.edn  | Clojure tools.deps configuration |
-  | tests.edn | kaocha test runner configuration |
-  | build.clj | Clojure tools.build building script |
-  | notebook  | [Clerk](https://github.com/nextjournal/clerk) notebooks to demostrate usage, use `clojure -M:dev:notebook` to use them |
+[cols="1,1"]
+|===
+| Filename | Description
 
-## Unlicense
+| deps.edn  | Clojure tools.deps configuration
+| tests.edn | kaocha test runner configuration
+| build.clj | Clojure tools.build building script
+| notebook  | https://github.com/nextjournal/clerk[Clerk] notebooks to demostrate usage, use `clojure -M:dev:notebook` to use them
+|===
+
+== https://unlicense.org[Unlicense]
 
 2022, Robertluo
