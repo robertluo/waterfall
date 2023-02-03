@@ -3,10 +3,9 @@
   (:require 
    [robertluo.waterfall
     [core :as core]
-    [util :as util]]
-   [manifold.stream :as ms]
-   [robertluo.waterfall.shape :as shape]
-   [robertluo.waterfall.util :as util]))
+    [util :as util]
+    [shape :as shape]]
+   [manifold.stream :as ms]))
 
 (def schema
   "Schema for waterfall"
@@ -86,13 +85,13 @@
 (defn kafka-cluster
   "returns a convient life-cycle-map of a kafka cluster. It requires:
     - `::nodes` kafka bootstrap servers
-    - `::shapes` shape of data, example: [(shape/topic (constantly \"sentence\"))(shape/edn)(shape/value-only)]
+    - `::shapes` shape of data, example: `[(shape/topic (constantly \"sentence\"))(shape/edn)(shape/value-only)]`
    
    If you just use it to publish message,
     - optional `::producer-config` can specify additional kafka producer configuration.
    
    If you want to consume from topics:
-    - `::topics` the topic you want to subscribe to. example: [\"sentence\"]
+    - `::topics` the topic you want to subscribe to. example: `[\"sentence\"]`
     - `::group-id` the group id for the message consumer
     - optional `::source-xform` is a transducer to process message before consuming
     - optional `::consumer-config` can specify additional kafka consumer configuration. With additions:
@@ -101,10 +100,10 @@
    
    The returned map has different level of key-values let you use:
     - Highest level, no additional knowledge:
-      - For consumer: `::consume` a function, a one-arity (each message) function as its arg, returns nil.
+      - For consumer: `::consume` a function, a one-arity (each message) function as its arg, returns `nil`.
       - For producer: 
-        -`::put` a function with a message as its arg. e.g. ((::put return-map) {:a 3})
-        -`::put-all` a function with message sequence as its arg
+        -`::put!` a function with a message as its arg. e.g. `((::put return-map) {:a 3})`
+        -`::put-all!` a function with message sequence as its arg
     - Mid level, if you need access of underlying manifold sink/source.
       - `::source` a manifold source.
       - `::sink` a manifold sink.
@@ -139,7 +138,7 @@
                     (->> (comp (map (shape/deserializer shapes)) (or source-xform (map identity)))
                          (xform-source consumer)))
       ::put! (fnk [::sink] (partial ms/put! sink))
-      ::put-all (fnk [::sink] (partial ms/put-all! sink))
+      ::put-all! (fnk [::sink] (partial ms/put-all! sink))
       ::consume (fnk [::source] #(ms/consume % source))})
     kafka-conf-map)
    (throw (ClassNotFoundException. "Need io.github.robertluo/fun-map library in the classpath"))))
