@@ -54,7 +54,6 @@
         (when-not
          (= ::stop
             (let [cmd @(ms/take! mailbox)]
-              (tap> cmd)
               (match cmd
                 [::close] (do (.close consumer) ::stop)
                 [::subscribe topics] (.subscribe consumer topics)
