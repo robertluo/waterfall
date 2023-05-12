@@ -73,10 +73,11 @@
                     (let [assigns (.assignment consumer)]
                       (when-not (.paused consumer)
                         (.pause consumer assigns))
-                      (d/chain (ms/put-all! out-sink events)
-                               (fn [rslt]
-                                 (when rslt
-                                   (cmd-self [::resume assigns duration])))))
+                      (when-not (ms/closed? out-sink)
+                        (d/chain (ms/put-all! out-sink events)
+                                 (fn [rslt]
+                                   (when rslt
+                                     (cmd-self [::resume assigns duration]))))))
                     (cmd-self [::poll duration])))
                 
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
