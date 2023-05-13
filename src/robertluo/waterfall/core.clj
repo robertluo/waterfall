@@ -43,45 +43,74 @@
  [offset partition serializedKeySize serializedValueSize
   timestamp timestampType topic key value headers])
 
+(defmacro with-exception-handling
+  "Macro to handle exceptions and return them in a controlled manner."
+  [ex-msg & body]
+  `(try
+     (do
+       ~@body)
+     (catch Exception e#
+       (ex-info ~ex-msg {:cause e#}))))
+
 (defn- consumer-actor
-  "Kafka consumer is not thread safe, using actor model will limit its access in a single thread.
-   See https://www.confluent.io/blog/kafka-consumer-multi-threaded-messaging/"
+  "Manages a Kafka consumer using an actor model to ensure thread safety.
+   This function creates a dedicated thread for consuming messages from Kafka,
+   and provides a thread-safe way of controlling the consumer through commands.
+
+   Args:
+   - consumer: Kafka Consumer instance.
+   - out-sink: Manifold stream where consumed messages are put.
+
+   Returns `cmd-self`, a function that accepts following commands:
+   - [::close]: Closes the consumer and stops the actor loop.
+   - [::subscribe topics]: Subscribes the consumer to given topics.
+   - [::seek :beginning]/[::seek :end]: Moves the consumer's offset to the beginning/end.
+   - [::resume duration]: Resumes the consumer and commits the offset.
+   - [::poll duration]: Polls the consumer for messages.
+   
+   Unknown commands will raise an exception."
   [^Consumer consumer out-sink]
   (let [mailbox (ms/stream)
-        cmd-self (fn [cmd] (ms/put! mailbox cmd))]
+        cmd-self (fn [cmd] (ms/put! mailbox cmd)) ; function to post commands to self
+        closing? (atom false) ; flag to indicate if the actor is closing
+        handle-events (fn [f events] ; function to handle polled events
+                        (when (seq events)
+                          (let [assigns (.assignment consumer)]
+                            (when-not (.paused consumer)
+                              (.pause consumer assigns)) ; pause consumer when processing events
+                            (f assigns events))))]
     (d/future
       (loop []
-        (when-not
-         (= ::stop
-            (let [cmd @(ms/take! mailbox)]
-              (match cmd
-                [::close] (do (.close consumer) ::stop)
+        (let [cmd @(ms/take! mailbox)]
+          (if (= cmd ::close)
+            (do (reset! closing? true) ; set closing flag
+                (with-exception-handling "on closing consumer"
+                  (.close consumer)) ; close consumer
+                ::stop) ; stop actor loop
+            (do
+              (match cmd ; match command
                 [::subscribe topics] (.subscribe consumer topics)
                 [::seek :beginning] (.seekToBeginning consumer (.assignment consumer))
                 [::seek :end] (.seekToEnd consumer (.assignment consumer))
-                
-                [::resume assigns duration]
+                [::resume duration]
                 (do
                   (when (.paused consumer)
-                    (.resume consumer assigns))
+                    (.resume consumer (.assignment consumer)))
                   (.commitSync consumer)
-                  (cmd-self [::poll duration]))
-                
+                  (cmd-self [::poll duration])) ; resume and poll
                 [::poll duration]
-                (let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))]
-                  (if (seq events)
-                    (let [assigns (.assignment consumer)]
-                      (when-not (.paused consumer)
-                        (.pause consumer assigns))
-                      (d/chain (ms/put-all! out-sink events)
-                               (fn [rslt]
-                                 (when rslt
-                                   (cmd-self [::resume assigns duration])))))
-                    (cmd-self [::poll duration])))
-                
-                :else (ex-info "unknown command for consumer actor" {:cmd cmd}))) )
-          (recur))))
+                (let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))
+                      f (fn [assigns events] ; function to handle events and resume
+                          (when-not (ms/closed? out-sink)
+                            (d/chain (ms/put-all! out-sink events)
+                                     #(when % (cmd-self [::resume assigns duration])))))]
+                  (handle-events f events) ; handle events
+                  (cmd-self [::poll duration])) ; poll again
+                :else (ex-info "unknown command for consumer actor" {:cmd cmd}))
+              (when-not @closing?
+                (recur))))))) ; continue loop if not closing
     cmd-self))
+
 
 (defn consumer
   [nodes group-id topics 
