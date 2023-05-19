@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    if: ${{!contains(toJSON(github.event.commits.*.message), '[skip-ci]')}}
     runs-on: ubuntu-latest
     environment: deploy
 
@@ -18,9 +18,9 @@ jobs:
       with:
         fetch-depth: 0
 
-    - uses: DeLaGuardo/setup-clojure@10.1
+    - uses: DeLaGuardo/setup-clojure@10.3
       with:
-        cli: '1.11.1.1208'
+        cli: '1.11.1.1273'
     - uses: actions/cache@v3
       with:
         path: ~/.m2

@@ -100,11 +100,11 @@
                   (cmd-self [::poll duration])) ; resume and poll
                 [::poll duration]
                 (let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))
-                      f (fn [assigns events] ; function to handle events and resume
+                      putting-all (fn [assigns events] ; function to handle events and resume
                           (when-not (ms/closed? out-sink)
                             (d/chain (ms/put-all! out-sink events)
                                      #(when % (cmd-self [::resume assigns duration])))))]
-                  (handle-events f events) ; handle events
+                  (handle-events putting-all events) ; handle events
                   (cmd-self [::poll duration])) ; poll again
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))
               (when-not @closing?
