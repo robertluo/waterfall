@@ -77,7 +77,8 @@
                         (let [assigns (.assignment consumer)]
                           (when-not (.paused consumer)
                             (.pause consumer assigns)) ; pause consumer when processing events
-                          (f events)))]
+                          (f events)))
+        ensure-sink (fn [f] (when-not (ms/closed? out-sink) (f)))] ; make sure the out-sink is open and call (f)
     (d/future
       (loop []
         (let [cmd @(ms/take! mailbox)]
@@ -99,12 +100,12 @@
                   (cmd-self [::poll duration])) ; resume and poll
                 [::poll duration]
                 (let [putting-all (fn [events] ; function to handle events and resume
-                                    (when-not (ms/closed? out-sink)
-                                      (d/chain (ms/put-all! out-sink events)
-                                               #(when % (cmd-self [::resume duration])))))]
-                  (if-let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map) seq)]
-                    (handle-events putting-all events) ; handle events
-                    (when-not (ms/closed? out-sink) (cmd-self [::poll duration])))) ; poll again if no events && not closed
+                                    (d/chain (ms/put-all! out-sink events)
+                                             #(when % (cmd-self [::resume duration]))))]
+                  (ensure-sink
+                   (if-let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map) seq)]
+                     #(handle-events putting-all events) ; handle events
+                     #(cmd-self [::poll duration])))) ; poll again if no events && not closed
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))
               (when-not @closing?
                 (recur))))))) ; continue loop if not closing
