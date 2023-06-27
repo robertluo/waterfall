@@ -74,15 +74,15 @@
         cmd-self (fn [cmd] (ms/put! mailbox cmd)) ; function to post commands to self
         closing? (atom false) ; flag to indicate if the actor is closing
         handle-events (fn [f events] ; function to handle polled events
-                        (when (seq events)
-                          (let [assigns (.assignment consumer)]
-                            (when-not (.paused consumer)
-                              (.pause consumer assigns)) ; pause consumer when processing events
-                            (f assigns events))))]
+                        (let [assigns (.assignment consumer)]
+                          (when-not (.paused consumer)
+                            (.pause consumer assigns)) ; pause consumer when processing events
+                          (f events)))
+        ensure-sink (fn [f] (when-not (ms/closed? out-sink) (f)))] ; make sure the out-sink is open and call (f)
     (d/future
       (loop []
         (let [cmd @(ms/take! mailbox)]
-          (if (= cmd ::close)
+          (if (= cmd [::close])
             (do (reset! closing? true) ; set closing flag
                 (with-exception-handling "on closing consumer"
                   (.close consumer)) ; close consumer
@@ -99,13 +99,13 @@
                   (.commitSync consumer)
                   (cmd-self [::poll duration])) ; resume and poll
                 [::poll duration]
-                (let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map))
-                      putting-all (fn [assigns events] ; function to handle events and resume
-                          (when-not (ms/closed? out-sink)
-                            (d/chain (ms/put-all! out-sink events)
-                                     #(when % (cmd-self [::resume assigns duration])))))]
-                  (handle-events putting-all events) ; handle events
-                  (cmd-self [::poll duration])) ; poll again
+                (let [putting-all (fn [events] ; function to handle events and resume
+                                    (d/chain (ms/put-all! out-sink events)
+                                             #(when % (cmd-self [::resume duration]))))]
+                  (ensure-sink
+                   (if-let [events (->> (.poll consumer duration) (.iterator) (iterator-seq) (map cr->map) seq)]
+                     #(handle-events putting-all events) ; handle events
+                     #(cmd-self [::poll duration])))) ; poll again if no events && not closed
                 :else (ex-info "unknown command for consumer actor" {:cmd cmd}))
               (when-not @closing?
                 (recur))))))) ; continue loop if not closing
