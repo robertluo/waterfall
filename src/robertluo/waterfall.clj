@@ -115,6 +115,7 @@
    [:=> schema [:cat [:map {:closed true}
                       [::nodes ::nodes]
                       [::shapes [:vector [:fn shape/shape?]]]
+                      [::consumer-config {:optional true} ::consumer-config]
                       [::producer-config {:optional true} ::producer-config]
                       [::group-id {:optional true} :string]
                       [::topics {:optional true} [:vector :string]]
