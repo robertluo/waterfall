@@ -1,7 +1,7 @@
 ;Configuration for Clojure tools.deps
 
 {:paths   ["src"]
- :deps    {manifold/manifold              {:mvn/version "0.4.1"}
+ :deps    {manifold/manifold              {:mvn/version "0.4.3"}
            org.apache.kafka/kafka-clients {:mvn/version "3.4.0" :scope "provided"} 
            org.clojure/core.match         {:mvn/version "1.0.1"}}
  :aliases {:dev
