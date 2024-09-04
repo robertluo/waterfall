@@ -59,6 +59,7 @@
 
    Args:
    - consumer: Kafka Consumer instance.
+   - committer: Function to commit the offset.
    - out-sink: Manifold stream where consumed messages are put.
 
    Returns `cmd-self`, a function that accepts following commands:
@@ -69,7 +70,7 @@
    - [::poll duration]: Polls the consumer for messages.
    
    Unknown commands will raise an exception."
-  [^Consumer consumer out-sink]
+  [^Consumer consumer committer out-sink]
   (let [mailbox (ms/stream)
         cmd-self (fn [cmd] (ms/put! mailbox cmd)) ; function to post commands to self
         closing? (atom false) ; flag to indicate if the actor is closing
@@ -96,7 +97,7 @@
                 (do
                   (when (.paused consumer)
                     (.resume consumer (.assignment consumer)))
-                  (.commitSync consumer)
+                  (committer consumer)
                   (cmd-self [::poll duration])) ; resume and poll
                 [::poll duration]
                 (let [putting-all (fn [events] ; function to handle events and resume
@@ -114,17 +115,22 @@
 
 (defn consumer
   [nodes group-id topics
-   {:keys [poll-duration position]
+   {:keys [poll-duration position commit-strategy]
     :as   conf
-    :or   {poll-duration (Duration/ofSeconds 10)}}]
-  (let [conr (-> (dissoc conf :poll-duration :position) ;avoid kafka complaints
+    :or   {poll-duration (Duration/ofSeconds 10)
+           commit-strategy :sync}}]
+  (let [committer (case commit-strategy
+                   :sync (fn [consumer] (.commitSync consumer))
+                   :async (fn [consumer] (.commitAsync consumer))
+                   :auto (constantly nil))
+        conr (-> (dissoc conf :poll-duration :position) ;avoid kafka complaints
                  (merge {:bootstrap-servers nodes
                          :group-id group-id
-                         :enable-auto-commit false})
+                         :enable-auto-commit (= commit-strategy :auto)})
                  util/->config-map
                  (KafkaConsumer. (ByteArrayDeserializer.) (ByteArrayDeserializer.)))
         out-sink (ms/stream)
-        actor (consumer-actor conr out-sink)]
+        actor (consumer-actor conr committer out-sink)]
     (actor [::subscribe topics])
     (when position (actor [::seek position]))
     (ms/on-closed out-sink (fn [] @(actor [::close])))

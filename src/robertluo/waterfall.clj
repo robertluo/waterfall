@@ -97,6 +97,7 @@
     - optional `::consumer-config` can specify additional kafka consumer configuration. With additions:
       - `:position` either `:beginning` `:end`, none for commited position (default)
       - `:poll-duration` for how long the consumer poll returns, is a Duration value, default 10 seconds
+      - `:commit-strategy` one of `:sync`, `:async`, `:auto`, default `:sync`
    
    The returned map has different level of key-values let you use:
     - Highest level, no additional knowledge:
